@@ -4,7 +4,7 @@ import pandas as pd
 from datetime import datetime, timedelta
 
 # --- SEITEN-KONFIGURATION ---
-st.set_page_title(page_title="Performance & Nutrition Dashboard", page_icon="⚡", layout="wide")
+st.set_page_config(page_title="Performance & Nutrition Dashboard", page_icon="⚡", layout="wide")
 
 st.title("⚡ Performance & Nutrition Dashboard")
 st.markdown("Deine Live-Daten von Intervals.icu, kombiniert mit Energy Availability & Makro-Periodisierung.")
