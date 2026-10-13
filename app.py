@@ -7,16 +7,21 @@ from datetime import datetime, timedelta
 st.set_page_config(page_title="Performance & Nutrition Dashboard", page_icon="⚡", layout="wide")
 
 st.title("⚡ Performance & Nutrition Dashboard")
-st.markdown("Live-Daten von Intervals.icu, automatische Makro-Periodisierung & Energy Availability.")
+st.markdown("Live-Daten von Intervals.icu, automatische Makro-Periodisierung, Energy Availability & KI-Coach.")
 
-# --- SIDEBAR: AUTHENTIFIZIERUNG & USER-DATEN ---
+# --- SIDEBAR: AUTHENTIFIZIERUNG & EINSTELLUNGEN (SICHER VERSTECKT) ---
 st.sidebar.header("🔑 API & Einstellungen")
 
-default_athlete_id = st.secrets["INTERVALS_ATHLETE_ID"] if "INTERVALS_ATHLETE_ID" in st.secrets else ""
-default_api_key = st.secrets["INTERVALS_API_KEY"] if "INTERVALS_API_KEY" in st.secrets else ""
+# Versuche Keys aus den Streamlit Secrets (Tresor) zu laden, sonst aus sicherem Sidebar-Input
+sec_athlete = st.secrets["INTERVALS_ATHLETE_ID"] if "INTERVALS_ATHLETE_ID" in st.secrets else ""
+sec_intervals_key = st.secrets["INTERVALS_API_KEY"] if "INTERVALS_API_KEY" in st.secrets else ""
+sec_claude_key = st.secrets["ANTHROPIC_API_KEY"] if "ANTHROPIC_API_KEY" in st.secrets else ""
 
-athlete_id = st.sidebar.text_input("Intervals Athlete ID", value=default_athlete_id, type="default")
-api_key = st.sidebar.text_input("Intervals API Key", value=default_api_key, type="password")
+with st.sidebar.expander("🔐 Zugangsdaten konfigurieren", expanded=not (sec_athlete and sec_intervals_key)):
+    athlete_id = st.text_input("Intervals Athlete ID", value=sec_athlete, type="default")
+    api_key = st.text_input("Intervals API Key", value=sec_intervals_key, type="password")
+    claude_api_key = st.text_input("Anthropic (Claude) API Key", value=sec_claude_key, type="password")
+    st.caption("Deine Keys werden sicher behandelt und nicht im Klartext angezeigt.")
 
 st.sidebar.divider()
 st.sidebar.header("👤 Biometrische Daten")
@@ -41,7 +46,7 @@ step_calories = int(steps * 0.04)
 
 # --- API DATEN ABRUFEN ---
 if not athlete_id or not api_key:
-    st.warning("⚠️ Bitte gib deine Intervals.icu Athlete ID und deinen API Key in der Sidebar ein (oder hinterlege sie in den Streamlit Secrets).")
+    st.warning("⚠️ Bitte hinterlege deine Intervals.icu Athlete ID und deinen API Key links in den Einstellungen (Sidebar).")
 else:
     auth = ('API_KEY', api_key)
     
@@ -54,7 +59,6 @@ else:
         auth_tuple = ('API_KEY', a_key)
         w_res = requests.get(f"https://intervals.icu/api/v1/athlete/{a_id}/wellness?oldest={start}&newest={end}", auth=auth_tuple)
         e_res = requests.get(f"https://intervals.icu/api/v1/athlete/{a_id}/events?oldest={start}&newest={end}", auth=auth_tuple)
-        # Abrufen der bereits absolvierten Aktivitäten (für echte Kalorien vergangener Workouts)
         a_res = requests.get(f"https://intervals.icu/api/v1/athlete/{a_id}/activities?oldest={start}&newest={end}", auth=auth_tuple)
         
         w_data = w_res.json() if w_res.status_code == 200 else []
@@ -81,7 +85,7 @@ else:
 
         st.divider()
 
-        # --- TÄGLICHE MAKRO- & ZIEL-KACHELN (HEUTE BIS +3 TAGE) ---
+        # --- TÄGLICHE MAKRO- & ZIEL-KACHELN ---
         st.subheader("🍽️ Tägliche Ernährungs- & Makro-Ziele (Periodisiert)")
         
         day_cols = st.columns(4)
@@ -91,20 +95,16 @@ else:
             date_str = target_date.strftime('%Y-%m-%d')
             day_name = "Heute" if i == 0 else target_date.strftime('%d.%m. (%a)')
             
-            # Prüfen ob Tag in der Vergangenheit/heute liegt oder in der Zukunft
             is_past_or_today = target_date <= today
             
             if is_past_or_today:
-                # Echte absolvierte Aktivitäten für diesen Tag filtern (start_date_local enthält das Datum)
                 day_acts = [a for a in activities_list if a.get('start_date_local', '').startswith(date_str)]
-                # Kalorien aus Aktivitäten (entweder 'calories' oder 'icu_joules' / 4.184)
                 actual_cals = 0
                 for act in day_acts:
                     c = act.get('calories')
                     if c:
                         actual_cals += c
                     else:
-                        # Fallback über Kilojoule (1 kJ = 0.239 kcal)
                         kJ = act.get('icu_joules') or act.get('energy')
                         if kJ:
                             actual_cals += int(kJ / 4.184)
@@ -114,11 +114,9 @@ else:
                 day_duration = sum([a.get('moving_time', 0) or 0 for a in day_acts]) / 60
                 activity_label = f"✅ Erfasst ({len(day_acts)} Einheit(en))" if day_acts else "🟢 Ruhetag / Kein Upload"
             else:
-                # Zukünftige Events (Geplant)
                 day_events = [e for e in events_list if e.get('start_date_local', '').startswith(date_str)]
                 day_load = sum([e.get('icu_training_load', 0) or 0 for e in day_events])
                 day_duration = sum([e.get('moving_time', 0) or 0 for e in day_events]) / 60
-                # Schätzung für geplante Events über TSS (* 8 als Daumenregel oder Event-Daten)
                 est_exercise_cals = int(day_load * 8) if day_load > 0 else 300
                 
                 if day_load > 120 or day_duration > 120:
@@ -128,7 +126,6 @@ else:
                 else:
                     activity_label = "🟢 Rest / Z2 (Geplant)"
 
-            # Makros berechnen
             protein_target = int(weight_kg * 2.0)
             fat_target = int(weight_kg * 1.1)
             
@@ -139,7 +136,6 @@ else:
             else:
                 carbs_target = int(weight_kg * 4)
 
-            # Gesamtbedarf (Erhaltungsumsatz für diesen Tag bei 0-Linie)
             total_target_cals = int(bmr + step_calories + est_exercise_cals)
             
             with day_cols[i]:
@@ -192,12 +188,11 @@ else:
         st.divider()
         st.subheader("🔋 Energy Availability (EA) Rechner (Heutiger Stand)")
         
-        # Versuche die heutigen echten Aktivitäts-Kalorien für den EA Rechner vorauszufüllen
         today_str = today.strftime('%Y-%m-%d')
         today_acts = [a for a in activities_list if a.get('start_date_local', '').startswith(today_str)]
         default_real_cals = sum([a.get('calories') or int((a.get('icu_joules') or 0)/4.184) for a in today_acts])
         if default_real_cals == 0:
-            default_real_cals = 800 # Fallback
+            default_real_cals = 800
 
         col_ea1, col_ea2 = st.columns(2)
         with col_ea1:
@@ -215,5 +210,60 @@ else:
                     st.warning("⚡ Moderater Bereich. An harten Tagen auf genügend Zufuhr achten.")
                 else:
                     st.success("🟢 Optimaler Bereich (> 45 kcal/kg FFM). Top Energieverfügbarkeit!")
+
+        # --- CLAUDE KI-COACH CHAT ---
+        st.divider()
+        st.subheader("💬 Claude AI Performance & Nutrition Coach")
+        st.markdown("Frag deinen persönlichen KI-Coach direkt zu deinen Trainings, dem Fueling oder Rezepten basierend auf deinen Dashboard-Daten.")
+
+        if not claude_api_key:
+            st.info("💡 Trage deinen Anthropic (Claude) API-Key in der Sidebar unter den Einstellungen ein, um den Chat-Coach zu aktivieren.")
+        else:
+            # Chatverlauf initialisieren
+            if "messages" not in st.session_state:
+                st.session_state.messages = []
+
+            for message in st.session_state.messages:
+                with st.chat_message(message["role"]):
+                    st.markdown(message["content"])
+
+            if prompt := st.chat_input("Frage Claude etwas zu deinem Training oder Ernährungsplan..."):
+                st.session_state.messages.append({"role": "user", "content": prompt})
+                with st.chat_message("user"):
+                    st.markdown(prompt)
+
+                with st.chat_message("assistant"):
+                    with st.spinner("Claude analysiert deine Daten und antwortet..."):
+                        try:
+                            # Claude API Aufruf
+                            headers = {
+                                "x-api-key": claude_api_key,
+                                "anthropic-version": "2023-06-01",
+                                "content-type": "application/json"
+                            }
+                            
+                            # Kontext aus Dashboard mitgeben
+                            system_context = f"Du bist ein professioneller Sport-Nutritionist und Radsport-Trainer. Der Athlet wiegt {weight_kg}kg, hat einen Grundumsatz von {int(bmr)} kcal, eine Magermasse von {round(ffm_kg,1)}kg und trackt seine Live-Daten über dieses Dashboard."
+                            
+                            payload = {
+                                "model": "claude-3-5-sonnet-20241022",
+                                "max_tokens": 1024,
+                                "system": system_context,
+                                "messages": [{"role": m["role"], "content": m["content"]} for m in st.session_state.messages]
+                            }
+                            
+                            response = requests.post("https://api.anthropic.com/v1/messages", json=payload, headers=headers)
+                            res_json = response.json()
+                            
+                            if response.status_code == 200:
+                                bot_reply = res_json['content'][0]['text']
+                            else:
+                                bot_reply = f"Fehler bei der API-Anfrage: {res_json.get('error', {}).get('message', 'Unbekannter Fehler')}"
+                            
+                            st.markdown(bot_reply)
+                            st.session_state.messages.append({"role": "assistant", "content": bot_reply})
+                        except Exception as e:
+                            st.error(f"Verbindungsfehler: {e}")
+
     else:
         st.error("Fehler beim Abrufen der Daten von Intervals.icu. Bitte prüfe deine Athlete ID und den API Key.")
