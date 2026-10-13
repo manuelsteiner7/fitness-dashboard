@@ -7,12 +7,11 @@ from datetime import datetime, timedelta
 st.set_page_config(page_title="Performance & Nutrition Dashboard", page_icon="⚡", layout="wide")
 
 st.title("⚡ Performance & Nutrition Dashboard")
-st.markdown("Deine Live-Daten von Intervals.icu, kombiniert mit Energy Availability & Makro-Periodisierung.")
+st.markdown("Live-Daten von Intervals.icu, automatisierte Makro-Periodisierung & Energy Availability.")
 
 # --- SIDEBAR: AUTHENTIFIZIERUNG & USER-DATEN ---
 st.sidebar.header("🔑 API & Einstellungen")
 
-# Nutzung von Streamlit Secrets (falls hinterlegt) oder manueller Eingabe
 default_athlete_id = st.secrets["INTERVALS_ATHLETE_ID"] if "INTERVALS_ATHLETE_ID" in st.secrets else ""
 default_api_key = st.secrets["INTERVALS_API_KEY"] if "INTERVALS_API_KEY" in st.secrets else ""
 
@@ -33,22 +32,25 @@ if gender == "Männlich":
 else:
     bmr = (10 * weight_kg) + (6.25 * height_cm) - (5 * age) - 161
 
-# Magermasse (Fat Free Mass - FFM)
 ffm_kg = weight_kg * (1 - (body_fat_pct / 100))
+
+st.sidebar.divider()
+st.sidebar.header("🚶‍♂️ Schritte & Alltagsaktivität")
+steps = st.sidebar.number_input("Tägliche Schritte (Ziel/Ist)", min_value=1000, max_value=30000, value=10000, step=500)
+
+# Zusätzliche Kalorien durch Schritte abschätzen (ca. 0.04 kcal pro Schritt je nach Gewicht)
+step_calories = int(steps * 0.04)
 
 # --- API DATEN ABRUFEN ---
 if not athlete_id or not api_key:
     st.warning("⚠️ Bitte gib deine Intervals.icu Athlete ID und deinen API Key in der Sidebar ein (oder hinterlege sie in den Streamlit Secrets).")
 else:
-    # HTTP Basic Auth für Intervals.icu ('API_KEY' als Username, Key selbst als Passwort)
     auth = ('API_KEY', api_key)
     
-    # Zeitraum definieren (letzte 7 Tage bis nächste 3 Tage)
     today = datetime.today().date()
     start_date = (today - timedelta(days=7)).strftime('%Y-%m-%d')
     end_date = (today + timedelta(days=3)).strftime('%Y-%m-%d')
     
-    # Daten sauber über gecachte Funktionen abrufen
     @st.cache_data(ttl=600)
     def fetch_intervals_data(a_id, a_key, start, end):
         auth_tuple = ('API_KEY', a_key)
@@ -63,7 +65,6 @@ else:
 
     if status_w == 200 and status_e == 200:
         
-        # Neuestes Gewicht aus Wellness ziehen falls vorhanden
         latest_weight = weight_kg
         for w in reversed(wellness_list):
             if 'weight' in w and w['weight']:
@@ -74,13 +75,65 @@ else:
         col1, col2, col3, col4 = st.columns(4)
         col1.metric("Aktuelles Gewicht", f"{latest_weight} kg")
         col2.metric("Berechneter BMR", f"{int(bmr)} kcal")
-        col3.metric("Magermasse (FFM)", f"{round(ffm_kg, 1)} kg")
+        col3.metric("Schritte-Kalorien", f"+{step_calories} kcal", delta=f"{steps} Schritte")
         col4.metric("Status API", "Verbunden ✅", delta="Intervals.icu")
 
         st.divider()
 
-        # --- WORKOUTS & FUELING PLANUNG ---
-        st.subheader("📅 Anstehende Workouts & Carb-Empfehlung")
+        # --- TÄGLICHE MAKRO- & ZIEL-KACHELN (HEUTE BIS +3 TAGE) ---
+        st.subheader("🍽️ Tägliche Ernährungs- & Makro-Ziele (Periodisiert)")
+        
+        # Wir zeigen die nächsten 4 Tage an (Heute + 3 Tage)
+        day_cols = st.columns(4)
+        
+        for i in range(4):
+            target_date = today + timedelta(days=i)
+            date_str = target_date.strftime('%Y-%m-%d')
+            day_name = "Heute" if i == 0 else target_date.strftime('%d.%m. (%a)')
+            
+            # Finde Events für diesen Tag, um den TSS / Workload zu ermitteln
+            day_events = [e for e in events_list if e.get('start_date_local', '').startswith(date_str)]
+            day_load = sum([e.get('icu_training_load', 0) or 0 for e in day_events])
+            day_duration = sum([e.get('moving_time', 0) or 0 for e in day_events]) / 60 # Minuten
+            
+            # Makro-Logik je nach Belastung
+            # Protein fix hoch für Muskelaufbau/Erhalt: ca. 2.0g - 2.2g pro kg FFM oder 1.8g pro kg Körpergewicht (~150g)
+            protein_target = int(weight_kg * 2.0) 
+            
+            # Fett: ca. 1.0g pro kg Körpergewicht (~70-80g)
+            fat_target = int(weight_kg * 1.1)
+            
+            # Kohlenhydrate basierend auf Trainingstag-Härte
+            if day_load > 120 or day_duration > 120:
+                carbs_target = int(weight_kg * 9) # Hard day
+                activity_label = "🔥 Hartes Training"
+            elif day_load > 60 or day_duration > 60:
+                carbs_target = int(weight_kg * 6) # Moderates Training
+                activity_label = "⚡ Moderates Training"
+            else:
+                carbs_target = int(weight_kg * 4) # Ruhetag / Z2
+                activity_label = "🟢 Rest / Z2"
+
+            # Kalorien-Berechnung: BMR + NEAT (Schritte) + TEF (~10%) + Aktivitätskalorien (geschätzt über TSS * 8 oder direkt)
+            est_exercise_cals = int(day_load * 8) if day_load > 0 else 300
+            total_target_cals = int(bmr + step_calories + est_exercise_cals)
+            
+            # Fallback falls gewünschter Bereich (z.B. bei sehr hohem Volumen Richtung 5000-8000 kcal)
+            with day_cols[i]:
+                st.markdown(f"### {day_name}")
+                st.caption(activity_label)
+                st.metric("Ziel-Kalorien", f"{total_target_cals} kcal")
+                st.markdown(f"""
+                * **Kohlenhydrate:** `{carbs_target} g`
+                * **Protein:** `{protein_target} g`
+                * **Fett:** `{fat_target} g`
+                * *TSS:* `{int(day_load)}`
+                """)
+
+        st.divider()
+
+        # --- WORKOUTS IN OFFENEN KACHELN ---
+        st.subheader("📅 Anstehende Workouts & Trainingseinheiten (Details)")
         
         future_events = [e for e in events_list if e.get('start_date_local', '') >= str(today)]
         
@@ -89,46 +142,50 @@ else:
                 ev_name = ev.get('name', 'Training')
                 ev_date = ev.get('start_date_local', '').split('T')[0]
                 ev_type = ev.get('type', 'Ride')
-                moving_time = ev.get('moving_time', 0) / 60  # Minuten
-                planned_load = ev.get('icu_training_load', 0) # TSS
+                moving_time = int(ev.get('moving_time', 0) / 60) # Minuten
+                planned_load = int(ev.get('icu_training_load', 0) or 0)
+                description = ev.get('description', 'Keine Beschreibung hinterlegt.')
                 
-                # Einfache Logik für Kohlenhydrat-Empfehlung basierend auf TSS / Dauer
+                # Fueling Empfehlung
                 if planned_load > 100 or moving_time > 90:
-                    carb_rec = f"{round(weight_kg * 8)}g - {round(weight_kg * 10)}g"
-                    fuel_advice = "Hohe Intensität: ~90g+ Kohlenhydrate pro Stunde während des Workouts."
+                    fuel_advice = "🚀 **Intra-Workout:** ~90g+ Kohlenhydrate / Stunde (Gels/Drink)."
                 elif planned_load > 50:
-                    carb_rec = f"{round(weight_kg * 6)}g - {round(weight_kg * 8)}g"
-                    fuel_advice = "Moderate Einheit: ~60g Kohlenhydrate pro Stunde."
+                    fuel_advice = "⚡ **Intra-Workout:** ~60g Kohlenhydrate / Stunde."
                 else:
-                    carb_rec = f"{round(weight_kg * 4)}g - {round(weight_kg * 5)}g"
-                    fuel_advice = "Erholung / Z2: Wasser / Elektrolyte reichen meist aus."
+                    fuel_advice = "💧 **Intra-Workout:** Wasser & Elektrolyte ausreichend."
 
-                with st.expander(f"🚴‍♂️ {ev_date}: {ev_name} ({ev_type} | ca. {int(planned_load)} TSS)"):
-                    st.write(f"**Empfohlene Tages-Kohlenhydrate:** {carb_rec}")
-                    st.write(f"**Intra-Workout Fueling:** {fuel_advice}")
+                # Als offene Box / Kachel darstellen statt expander
+                with st.container(border=True):
+                    col_w1, col_w2 = st.columns([3, 1])
+                    with col_w1:
+                        st.markdown(f"#### 🚴‍♂️ {ev_date}: {ev_name} (`{ev_type}`)")
+                        st.markdown(f"**Inhalt / Beschreibung:**\n\n {description}")
+                        st.info(fuel_advice)
+                    with col_w2:
+                        st.metric("Geplante Dauer", f"{moving_time} min")
+                        st.metric("Training Load", f"{planned_load} TSS")
         else:
             st.info("Keine zukünftigen Events im abgefragten Zeitraum gefunden.")
 
         # --- ENERGY AVAILABILITY RECHNER ---
         st.divider()
-        st.subheader("🔋 Energy Availability (EA) Rechner")
+        st.subheader("🔋 Energy Availability (EA) Rechner (Heutiger Stand)")
         
         col_ea1, col_ea2 = st.columns(2)
         with col_ea1:
-            consumed_cals = st.number_input("Geschätzte Kalorienzufuhr heute (kcal)", value=2800, step=100)
-            exercise_cals = st.number_input("Verbrauchte Trainingskalorien (Aktivität) heute (kcal)", value=800, step=50)
+            consumed_cals = st.number_input("Gegessene Kalorien heute (kcal)", value=3200, step=100)
+            exercise_cals = st.number_input("Verbrauchte Trainingskalorien heute (kcal)", value=800, step=50)
         
         with col_ea2:
-            # EA Formel: (Intake - Exercise Energy Expenditure) / FFM
             if ffm_kg > 0:
                 ea = (consumed_cals - exercise_cals) / ffm_kg
                 st.metric("Energy Availability (EA)", f"{round(ea, 1)} kcal/kg FFM")
                 
                 if ea < 30:
-                    st.error("⚠️ ACHTUNG: EA unter 30 kcal/kg FFM! Risiko für RED-S und hormonelle Dysregulation.")
+                    st.error("⚠️ ACHTUNG: EA unter 30 kcal/kg FFM! Risiko für RED-S.")
                 elif ea < 45:
-                    st.warning("⚡ Moderater Bereich. Achte darauf, an harten Trainingstagen genug zu essen.")
+                    st.warning("⚡ Moderater Bereich. An harten Tagen auf genügend Zufuhr achten.")
                 else:
-                    st.success("🟢 Optimaler Bereich (> 45 kcal/kg FFM). Gute Energieverfügbarkeit für Adaption.")
+                    st.success("🟢 Optimaler Bereich (> 45 kcal/kg FFM). Top Energieverfügbarkeit!")
     else:
         st.error("Fehler beim Abrufen der Daten von Intervals.icu. Bitte prüfe deine Athlete ID und den API Key.")
