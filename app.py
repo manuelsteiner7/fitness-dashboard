@@ -48,13 +48,20 @@ else:
     start_date = (today - timedelta(days=7)).strftime('%Y-%m-%d')
     end_date = (today + timedelta(days=3)).strftime('%Y-%m-%d')
     
+    # Daten sauber über gecachte Funktionen abrufen
     @st.cache_data(ttl=600)
-    data_wellness = requests.get(f"https://intervals.icu/api/v1/athlete/{athlete_id}/wellness?oldest={start_date}&newest={end_date}", auth=auth)
-    data_events = requests.get(f"https://intervals.icu/api/v1/athlete/{athlete_id}/events?oldest={start_date}&newest={end_date}", auth=auth)
+    def fetch_intervals_data(a_id, a_key, start, end):
+        auth_tuple = ('API_KEY', a_key)
+        w_res = requests.get(f"https://intervals.icu/api/v1/athlete/{a_id}/wellness?oldest={start}&newest={end}", auth=auth_tuple)
+        e_res = requests.get(f"https://intervals.icu/api/v1/athlete/{a_id}/events?oldest={start}&newest={end}", auth=auth_tuple)
+        
+        w_data = w_res.json() if w_res.status_code == 200 else []
+        e_data = e_res.json() if e_res.status_code == 200 else []
+        return w_data, e_data, w_res.status_code, e_res.status_code
 
-    if data_wellness.status_code == 200 and data_events.status_code == 200:
-        wellness_list = data_wellness.json()
-        events_list = data_events.json()
+    wellness_list, events_list, status_w, status_e = fetch_intervals_data(athlete_id, api_key, start_date, end_date)
+
+    if status_w == 200 and status_e == 200:
         
         # Neuestes Gewicht aus Wellness ziehen falls vorhanden
         latest_weight = weight_kg
