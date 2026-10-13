@@ -9,17 +9,27 @@ st.set_page_config(page_title="Performance & Nutrition Dashboard", page_icon="�
 st.title("⚡ Performance & Nutrition Dashboard")
 st.markdown("Live-Daten von Intervals.icu, Energiebilanz, EA-Rechner & KI-Coach.")
 
-# --- SIDEBAR: AUTHENTIFIZIERUNG & EINSTELLUNGEN ---
+# --- SIDEBAR: AUTHENTIFIZIERUNG & EINSTELLUNGEN (MIT SESSION STATE) ---
 st.sidebar.header("🔑 API & Einstellungen")
 
-sec_athlete = st.secrets["INTERVALS_ATHLETE_ID"] if "INTERVALS_ATHLETE_ID" in st.secrets else ""
-sec_intervals_key = st.secrets["INTERVALS_API_KEY"] if "INTERVALS_API_KEY" in st.secrets else ""
-sec_claude_key = st.secrets["ANTHROPIC_API_KEY"] if "ANTHROPIC_API_KEY" in st.secrets else ""
+# Initialisiere Session State für Credentials falls nicht vorhanden
+if "athlete_id" not in st.session_state:
+    st.session_state.athlete_id = st.secrets["INTERVALS_ATHLETE_ID"] if "INTERVALS_ATHLETE_ID" in st.secrets else ""
+if "api_key" not in st.session_state:
+    st.session_state.api_key = st.secrets["INTERVALS_API_KEY"] if "INTERVALS_API_KEY" in st.secrets else ""
+if "claude_api_key" not in st.session_state:
+    st.session_state.claude_api_key = st.secrets["ANTHROPIC_API_KEY"] if "ANTHROPIC_API_KEY" in st.secrets else ""
 
-with st.sidebar.expander("🔐 Zugangsdaten konfigurieren", expanded=not (sec_athlete and sec_intervals_key)):
-    athlete_id = st.text_input("Intervals Athlete ID", value=sec_athlete, type="default")
-    api_key = st.text_input("Intervals API Key", value=sec_intervals_key, type="password")
-    claude_api_key = st.text_input("Anthropic (Claude) API Key", value=sec_claude_key, type="password")
+with st.sidebar.expander("🔐 Zugangsdaten konfigurieren", expanded=not (st.session_state.athlete_id and st.session_state.api_key)):
+    # Eingabefelder direkt an session_state gekoppelt, damit sie erhalten bleiben
+    st.session_state.athlete_id = st.text_input("Intervals Athlete ID", value=st.session_state.athlete_id, type="default")
+    st.session_state.api_key = st.text_input("Intervals API Key", value=st.session_state.api_key, type="password")
+    st.session_state.claude_api_key = st.text_input("Anthropic (Claude) API Key", value=st.session_state.claude_api_key, type="password")
+
+# Variablen für den restlichen Code übernehmen
+athlete_id = st.session_state.athlete_id
+api_key = st.session_state.api_key
+claude_api_key = st.session_state.claude_api_key
 
 st.sidebar.divider()
 st.sidebar.header("👤 Biometrische Daten")
