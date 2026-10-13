@@ -82,7 +82,6 @@ else:
         today_str = today.strftime('%Y-%m-%d')
         today_acts = [a for a in activities_list if a.get('start_date_local', '').startswith(today_str)]
         
-        # Echte Aktivitätskalorien heute aus Intervals sammeln + Details der Einheiten
         today_exercise_cals = 0
         workout_details_list = []
         for act in today_acts:
@@ -94,24 +93,17 @@ else:
             today_exercise_cals += c
             workout_details_list.append(f"• **{act_name}**: `{c} kcal`")
 
-        # Gesamterbrauch heute = BMR + Schritte (NEAT) + Echte Workout-Kalorien (TEF wird meist vernachlässigt oder pauschal addiert)
         total_today_output = int(bmr + step_calories + today_exercise_cals)
 
-        # Eingabe für den Intake (Gegessene Kalorien heute)
         col_in1, col_in2 = st.columns([2, 2])
         with col_in1:
             consumed_today = st.number_input("Gegessene Kalorien heute (Intake in kcal)", value=3200, step=50)
         with col_in2:
             st.markdown(f"**Aktuelles Gewicht:** `{latest_weight} kg` | **Magermasse (FFM):** `{round(ffm_kg, 1)} kg`")
 
-        # Gegenrechnung: Bilanz (Intake - Output)
         net_balance = consumed_today - total_today_output
-
-        # Exakte EA Berechnung: (Intake - Exercise Energy Expenditure) / FFM
-        # Hinweis: EA bezieht sich rein auf den Kraftstoff nach Abzug der Sportkalorien
         energy_availability = (consumed_today - today_exercise_cals) / ffm_kg if ffm_kg > 0 else 0
 
-        # Große KPI-Kacheln für den heutigen Tag
         c1, c2, c3, c4 = st.columns(4)
         c1.metric("Gesamtverbrauch (TDEE)", f"{total_today_output} kcal", delta=f"BMR {int(bmr)} + NEAT {step_calories} + Workouts {today_exercise_cals}")
         c2.metric("Gegessen (Intake)", f"{consumed_today} kcal")
@@ -128,7 +120,6 @@ else:
         else:
             c4.metric("Energy Availability", f"{round(energy_availability, 1)} kcal/kg", delta="🟢 Optimal (>45)", delta_color="normal")
 
-        # Ausklappbare / direkte Detailbox für die HEUTIGEN Workout-Kalorien
         with st.expander("🔍 Aufschlüsselung der heutigen Einheiten & Verbraucher"):
             st.markdown(f"- **Grundumsatz (BMR):** `{int(bmr)} kcal`")
             st.markdown(f"- **Alltagsaktivität (Schritte: {steps}):** `+{step_calories} kcal`")
@@ -238,7 +229,6 @@ else:
                                 "content-type": "application/json"
                             }
                             
-                            # Übergabe der präzisen heutigen Live-Werte an Claude als System-Kontext
                             system_context = (
                                 f"Du bist ein Elite Sport-Nutritionist und Radsport-Trainer. "
                                 f"Athleten-Daten: Gewicht {weight_kg}kg, FFM {round(ffm_kg,1)}kg, Grundumsatz (BMR) {int(bmr)} kcal. "
@@ -252,7 +242,7 @@ else:
                             )
                             
                             payload = {
-                                "model": "claude-3-5-sonnet-20241022",
+                                "model": "claude-3-5-sonnet-latest",
                                 "max_tokens": 1024,
                                 "system": system_context,
                                 "messages": [{"role": m["role"], "content": m["content"]} for m in st.session_state.messages]
