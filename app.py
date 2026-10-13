@@ -127,3 +127,149 @@ else:
             c4.metric("Energy Availability", f"{round(energy_availability, 1)} kcal/kg", delta="⚡ Moderat", delta_color="off")
         else:
             c4.metric("Energy Availability", f"{round(energy_availability, 1)} kcal/kg", delta="🟢 Optimal (>45)", delta_color="normal")
+
+        # Ausklappbare / direkte Detailbox für die HEUTIGEN Workout-Kalorien
+        with st.expander("🔍 Aufschlüsselung der heutigen Einheiten & Verbraucher"):
+            st.markdown(f"- **Grundumsatz (BMR):** `{int(bmr)} kcal`")
+            st.markdown(f"- **Alltagsaktivität (Schritte: {steps}):** `+{step_calories} kcal`")
+            if workout_details_list:
+                st.markdown("- **Absolvierte Workouts (Intervals.icu):**")
+                for w_str in workout_details_list:
+                    st.markdown(f"  {w_str}")
+            else:
+                st.info("Heute wurden bisher noch keine abgeschlossenen Aktivitäten via Garmin/Intervals synchronisiert.")
+
+        st.divider()
+
+        # --- TÄGLICHE MAKRO- & ZIEL-KACHELN (4 TAGE) ---
+        st.subheader("🍽️ Ernährungs- & Makro-Ziele (Periodisiert)")
+        
+        day_cols = st.columns(4)
+        for i in range(4):
+            target_date = today + timedelta(days=i)
+            date_str = target_date.strftime('%Y-%m-%d')
+            day_name = "Heute" if i == 0 else target_date.strftime('%d.%m. (%a)')
+            
+            is_past_or_today = target_date <= today
+            
+            if is_past_or_today:
+                day_acts = [a for a in activities_list if a.get('start_date_local', '').startswith(date_str)]
+                actual_cals = sum([a.get('calories') or int((a.get('icu_joules') or 0)/4.184) for a in day_acts])
+                est_exercise_cals = actual_cals
+                day_load = sum([a.get('icu_training_load', 0) or 0 for a in day_acts])
+                activity_label = f"✅ Erfasst ({len(day_acts)} Einheit)" if day_acts else "🟢 Ruhetag"
+            else:
+                day_events = [e for e in events_list if e.get('start_date_local', '').startswith(date_str)]
+                day_load = sum([e.get('icu_training_load', 0) or 0 for e in day_events])
+                est_exercise_cals = int(day_load * 8) if day_load > 0 else 300
+                activity_label = "⚡ Geplant"
+
+            protein_target = int(weight_kg * 2.0)
+            fat_target = int(weight_kg * 1.1)
+            carbs_target = int(weight_kg * 9) if day_load > 120 else (int(weight_kg * 6) if day_load > 60 else int(weight_kg * 4))
+            total_target_cals = int(bmr + step_calories + est_exercise_cals)
+            
+            with day_cols[i]:
+                st.markdown(f"### {day_name}")
+                st.caption(activity_label)
+                st.metric("Ziel-Kcal (0-Linie)", f"{total_target_cals} kcal")
+                st.markdown(f"""
+                * **Carbs:** `{carbs_target} g`
+                * **Protein:** `{protein_target} g`
+                * **Fett:** `{fat_target} g`
+                * **Training-Kcal:** `{est_exercise_cals}`
+                """)
+
+        st.divider()
+
+        # --- WORKOUTS IN OFFENEN KACHELN ---
+        st.subheader("📅 Anstehende Workouts (Details)")
+        future_events = [e for e in events_list if e.get('start_date_local', '') >= str(today)]
+        
+        if future_events:
+            for ev in future_events:
+                ev_name = ev.get('name', 'Training')
+                ev_date = ev.get('start_date_local', '').split('T')[0]
+                ev_type = ev.get('type', 'Ride')
+                moving_time = int(ev.get('moving_time', 0) / 60)
+                planned_load = int(ev.get('icu_training_load', 0) or 0)
+                description = ev.get('description', 'Keine Beschreibung hinterlegt.')
+                
+                fuel_advice = "🚀 **Intra-Workout:** ~90g+ Carbs/h" if (planned_load > 100 or moving_time > 90) else ("⚡ **Intra-Workout:** ~60g Carbs/h" if planned_load > 50 else "💧 **Intra-Workout:** Nur Wasser/Elektrolyte")
+
+                with st.container(border=True):
+                    col_w1, col_w2 = st.columns([3, 1])
+                    with col_w1:
+                        st.markdown(f"#### 🚴‍♂️ {ev_date}: {ev_name} (`{ev_type}`)")
+                        st.markdown(f"**Beschreibung:**\n\n {description}")
+                        st.info(fuel_advice)
+                    with col_w2:
+                        st.metric("Dauer", f"{moving_time} min")
+                        st.metric("TSS", f"{planned_load}")
+        else:
+            st.info("Keine zukünftigen Events im abgefragten Zeitraum gefunden.")
+
+        # --- CLAUDE KI-COACH CHAT ---
+        st.divider()
+        st.subheader("💬 Claude AI Performance & Nutrition Coach")
+        st.markdown("Frag Claude zu deinen Live-Werten. Er kennt deinen heutigen Verbrauch, den Intake, das Defizit/Überschuss und deine Energy Availability.")
+
+        if not claude_api_key:
+            st.info("💡 Trage deinen Anthropic API-Key in der Sidebar unter den Einstellungen ein, um den Chat zu aktivieren.")
+        else:
+            if "messages" not in st.session_state:
+                st.session_state.messages = []
+
+            for message in st.session_state.messages:
+                with st.chat_message(message["role"]):
+                    st.markdown(message["content"])
+
+            if prompt := st.chat_input("Frage Claude zu deiner aktuellen Bilanz oder dem Fueling..."):
+                st.session_state.messages.append({"role": "user", "content": prompt})
+                with st.chat_message("user"):
+                    st.markdown(prompt)
+
+                with st.chat_message("assistant"):
+                    with st.spinner("Claude analysiert deine Live-Bilanz..."):
+                        try:
+                            headers = {
+                                "x-api-key": claude_api_key,
+                                "anthropic-version": "2023-06-01",
+                                "content-type": "application/json"
+                            }
+                            
+                            # Übergabe der präzisen heutigen Live-Werte an Claude als System-Kontext
+                            system_context = (
+                                f"Du bist ein Elite Sport-Nutritionist und Radsport-Trainer. "
+                                f"Athleten-Daten: Gewicht {weight_kg}kg, FFM {round(ffm_kg,1)}kg, Grundumsatz (BMR) {int(bmr)} kcal. "
+                                f"HEUTIGER TAG LIVE-DATEN: "
+                                f"- Schritte-Kalorien (NEAT): {step_calories} kcal ({steps} Schritte) "
+                                f"- Echte Workout-Aktivitätskalorien (EEE): {today_exercise_cals} kcal "
+                                f"- Gesamterbrauch (TDEE): {total_today_output} kcal "
+                                f"- Gegessener Intake: {consumed_today} kcal "
+                                f"- Netto-Bilanz: {net_balance} kcal ({'Defizit' if net_balance < 0 else 'Überschuss'}) "
+                                f"- Energy Availability (EA): {round(energy_availability, 1)} kcal/kg FFM."
+                            )
+                            
+                            payload = {
+                                "model": "claude-3-5-sonnet-20241022",
+                                "max_tokens": 1024,
+                                "system": system_context,
+                                "messages": [{"role": m["role"], "content": m["content"]} for m in st.session_state.messages]
+                            }
+                            
+                            response = requests.post("https://api.anthropic.com/v1/messages", json=payload, headers=headers)
+                            res_json = response.json()
+                            
+                            if response.status_code == 200:
+                                bot_reply = res_json['content'][0]['text']
+                            else:
+                                bot_reply = f"API-Fehler: {res_json.get('error', {}).get('message', 'Unbekannt')}"
+                            
+                            st.markdown(bot_reply)
+                            st.session_state.messages.append({"role": "assistant", "content": bot_reply})
+                        except Exception as e:
+                            st.error(f"Fehler: {e}")
+
+    else:
+        st.error("Fehler beim Abrufen der Intervals.icu Daten. Bitte prüfe ID und API Key.")
