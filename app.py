@@ -30,10 +30,10 @@ claude_api_key = st.session_state.claude_api_key
 
 st.sidebar.divider()
 st.sidebar.header("👤 Biometrische Daten")
-weight_kg = st.sidebar.number_input("Körpergewicht (kg)", value=72.0, step=0.5)
-body_fat_pct = st.sidebar.slider("Körperfettanteil (%)", min_value=5.0, max_value=30.0, value=12.0, step=0.5)
+weight_kg = st.sidebar.number_input("Körpergewicht (kg)", value=73.0, step=0.5)
+body_fat_pct = st.sidebar.slider("Körperfettanteil (%)", min_value=5.0, max_value=30.0, value=11.0, step=0.5)
 age = st.sidebar.number_input("Alter", value=30, step=1)
-height_cm = st.sidebar.number_input("Größe (cm)", value=180, step=1)
+height_cm = st.sidebar.number_input("Größe (cm)", value=184, step=1)
 gender = st.sidebar.selectbox("Geschlecht", ["Männlich", "Weiblich"])
 
 if gender == "Männlich":
@@ -165,14 +165,12 @@ else:
         st.subheader("📊 Interaktive Wochen-Übersicht (Intake & Bilanz)")
         st.markdown("Passe hier den täglichen Intake an, um sofort die kumulierte Wochenbilanz und die EA-Werte zu sehen.")
 
-        # Erstelle Beispieldaten für die letzten 7 Tage
         week_data = []
         for i in range(6, -1, -1):
             d = today - timedelta(days=i)
             d_str = d.strftime('%Y-%m-%d')
             d_name = d.strftime('%a %d.%m.')
             
-            # Hole Aktivitäten für diesen Tag
             day_acts = [a for a in activities_list if a.get('start_date_local', '').startswith(d_str)]
             ex_cals = sum([a.get('calories') or int((a.get('icu_joules') or 0)/4.184) for a in day_acts])
             
@@ -187,10 +185,8 @@ else:
 
         df_week = pd.DataFrame(week_data)
         
-        # Streamlit Data Editor zum interaktiven Bearbeiten des Intakes
         edited_df = st.data_editor(df_week, num_rows="fixed", use_container_width=True)
 
-        # Berechnungen auf Basis der bearbeiteten Tabelle
         edited_df["Bilanz"] = edited_df["Intake (kcal)"] - edited_df["Verbrauch (TDEE)"]
         edited_df["EA (kcal/kg FFM)"] = ((edited_df["Intake (kcal)"] - edited_df["Training Cals"]) / ffm_kg).round(1)
 
@@ -209,9 +205,11 @@ else:
 
         st.divider()
 
+        # ==========================================
         # --- CLAUDE KI-COACH CHAT ---
+        # ==========================================
         st.subheader("💬 Claude AI Performance & Nutrition Coach")
-        st.markdown("Frag Claude zu deinen Live-Werten, Wochenbilanzen oder Intervall-Planungen. Er hat den vollen Kontext.")
+        st.markdown("Frag Claude zu deinen Live-Werten, Wochenbilanzen oder Intervall-Planungen.")
 
         if not claude_api_key:
             st.info("💡 Trage deinen Anthropic API-Key in der Sidebar unter den Einstellungen ein, um den Chat zu aktivieren.")
@@ -223,13 +221,13 @@ else:
                 with st.chat_message(message["role"]):
                     st.markdown(message["content"])
 
-            if prompt := st.chat_input("Frage Claude zu deiner aktuellen Bilanz, dem Fueling oder Training..."):
+            if prompt := st.chat_input("Frage deinen Performance & Nutrition Coach..."):
                 st.session_state.messages.append({"role": "user", "content": prompt})
                 with st.chat_message("user"):
                     st.markdown(prompt)
 
                 with st.chat_message("assistant"):
-                    with st.spinner("Claude analysiert deine Live-Bilanz & Wochen-Tabelle..."):
+                    with st.spinner("Claude analysiert deine Daten..."):
                         try:
                             headers = {
                                 "x-api-key": claude_api_key,
@@ -237,14 +235,41 @@ else:
                                 "content-type": "application/json"
                             }
                             
-                            system_context = (
-                                f"Du bist ein Elite Sport-Nutritionist und Radsport-Trainer für den Athleten Manuel Steiner "
-                                f"(Gewicht {weight_kg}kg, FFM {round(ffm_kg,1)}kg, FTP 325W, BMR {int(bmr)} kcal). "
-                                f"HEUTIGER TAG: Verbrauch {total_today_output} kcal, Intake {consumed_today} kcal, "
-                                f"Netto-Bilanz {net_balance} kcal, EA {round(energy_availability, 1)} kcal/kg FFM. "
-                                f"WOCHEN-ÜBERSICHT:\n{edited_df.to_string()}"
-                            )
-                            
+                            system_context = f"""
+Du bist der persönliche Ausdauercoach (Rennrad und Marathon) für Manuel Steiner.
+
+### COACHING- UND KOMMUNIKATIONSSTIL
+* Biete eine wissenschaftlich fundierte, evidenzbasierte Begründung anhand der Trainingsphysiologie.
+* Objektive, rationale Antworten, keine unbegründete Zustimmung. Korrigiere fachlich nicht sinnvolle Einschätzungen direkt.
+* Klares, natürliches Deutsch. Unnötige englische Begriffe vermeiden, wenn es deutsche Fachbegriffe gibt.
+* Gedankenstriche NIEMALS als Ersatz für Kommata oder Satzzeichen verwenden.
+* Bei Wochenplänen den genauen Inhalt der Workouts angeben (Intervallzeiten inkl. exakter Wattzahlen, HF-Bereiche, Pace beim Laufen). Keine Verteilung von Spannen/Ranges, sondern klare Einzelwerte.
+* Bevorzuge einen periodisierten Trainingsansatz (ca. jede 4. Woche eine Entlastungswoche).
+* Datums-, Wochentags- und Restzeit-Berechnungen (z. B. Tage bis zu einem Wettkampf) immer sorgfältig prüfen.
+
+### ERNÄHRUNGSVORGABEN
+* Kochvorschläge sind konsequent VEGETARISCH oder VEGAN (keine Fleischgerichte vorschlagen, auch nicht als Beilagenprotein).
+* Mengenangaben bei Ernährung grundsätzlich als Rohgewicht.
+* Bei geposteten Mahlzeiten: Automatische Analyse von Kalorien, Makros, Mikros (soweit sinnvoll), Proteinversorgung, KH-Versorgung, Fueling-Qualität, Passung zum Training, Timing und Verbesserungsvorschlägen.
+* Energy Availability (EA = (Intake − Training) / FFM) muss über 30 kcal/kg Magermasse bleiben. Maximales tägliches Defizit ca. 300 kcal.
+* Proteinziel: 145–155 g/Tag (~2,0–2,1 g/kg).
+
+### ATHLETENPROFIL & BENCHMARKS
+* Name: Manuel Steiner, Enterprise Architect bei SAP in München, 1,84 m, ~73 kg.
+* Rennrad: FTP 319 W (Intervals.icu), 5-Minuten-Leistung 391 W, Schwellen-HF 169 bpm.
+* HF-Zonen Rad: Z1 <135, Z2 132-142, Z3 143-154, Sweet Spot 155-162, Schwelle 163-170, VO2max >170 bpm.
+* Laufen: Schwellenpace 3:42 min/km, Schwellen-HF 172 bpm.
+* Ziele: Marathon unter 2:45 h (Berlin Marathon), UCI Gran Fondo Top 25% (Qualifikation World Championships).
+
+### HEUTIGE LIVE-DATEN UND WOCHENÜBERSICHT
+* Gewicht: {weight_kg} kg, Magermasse (FFM): {round(ffm_kg, 1)} kg, Grundumsatz (BMR): {int(bmr)} kcal.
+* Heutige Schritte (NEAT): {step_calories} kcal ({steps} Schritte).
+* Heutiger TDEE-Verbrauch: {total_today_output} kcal | Gegessen: {consumed_today} kcal.
+* Heutige Bilanz: {net_balance} kcal | EA: {round(energy_availability, 1)} kcal/kg FFM.
+* Wochen-Tabelle (Intervals & Intake):
+{edited_df.to_string()}
+"""
+
                             payload = {
                                 "model": "claude-3-haiku-20240307",
                                 "max_tokens": 1024,
