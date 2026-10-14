@@ -9,10 +9,9 @@ st.set_page_config(page_title="Performance & Nutrition Dashboard", page_icon="�
 st.title("⚡ Performance & Nutrition Dashboard")
 st.markdown("Live-Daten von Intervals.icu, Energiebilanz, EA-Rechner & KI-Coach.")
 
-# --- SIDEBAR: AUTHENTIFIZIERUNG & EINSTELLUNGEN (MIT SESSION STATE) ---
+# --- SIDEBAR: AUTHENTIFIZIERUNG & EINSTELLUNGEN ---
 st.sidebar.header("🔑 API & Einstellungen")
 
-# Initialisiere Session State für Credentials falls nicht vorhanden
 if "athlete_id" not in st.session_state:
     st.session_state.athlete_id = st.secrets["INTERVALS_ATHLETE_ID"] if "INTERVALS_ATHLETE_ID" in st.secrets else ""
 if "api_key" not in st.session_state:
@@ -21,12 +20,10 @@ if "claude_api_key" not in st.session_state:
     st.session_state.claude_api_key = st.secrets["ANTHROPIC_API_KEY"] if "ANTHROPIC_API_KEY" in st.secrets else ""
 
 with st.sidebar.expander("🔐 Zugangsdaten konfigurieren", expanded=not (st.session_state.athlete_id and st.session_state.api_key)):
-    # Eingabefelder direkt an session_state gekoppelt, damit sie erhalten bleiben
     st.session_state.athlete_id = st.text_input("Intervals Athlete ID", value=st.session_state.athlete_id, type="default")
     st.session_state.api_key = st.text_input("Intervals API Key", value=st.session_state.api_key, type="password")
     st.session_state.claude_api_key = st.text_input("Anthropic (Claude) API Key", value=st.session_state.claude_api_key, type="password")
 
-# Variablen für den restlichen Code übernehmen
 athlete_id = st.session_state.athlete_id
 api_key = st.session_state.api_key
 claude_api_key = st.session_state.claude_api_key
@@ -39,7 +36,6 @@ age = st.sidebar.number_input("Alter", value=30, step=1)
 height_cm = st.sidebar.number_input("Größe (cm)", value=180, step=1)
 gender = st.sidebar.selectbox("Geschlecht", ["Männlich", "Weiblich"])
 
-# Grundumsatz berechnen (Mifflin-St. Jeor Formel)
 if gender == "Männlich":
     bmr = (10 * weight_kg) + (6.25 * height_cm) - (5 * age) + 5
 else:
@@ -116,7 +112,7 @@ else:
             st.sidebar.info("Keine anstehenden Events im Kalender.")
 
         # ==========================================
-        # --- HAUPTSEITE: HEUTIGER TAG HERO-SEKTION ---
+        # --- HEUTIGER TAG HERO-SEKTION ---
         # ==========================================
         st.subheader("🎯 Heutiger Tag – Live Energie- & Bilanz-Übersicht")
         
@@ -138,7 +134,7 @@ else:
 
         col_in1, col_in2 = st.columns([2, 2])
         with col_in1:
-            consumed_today = st.number_input("Gegessene Kalorien heute (Intake in kcal)", value=3200, step=50)
+            consumed_today = st.number_input("Gegessene Kalorien heute (Intake in kcal)", value=2800, step=50)
         with col_in2:
             st.markdown(f"**Aktuelles Gewicht:** `{latest_weight} kg` | **Magermasse (FFM):** `{round(ffm_kg, 1)} kg`")
 
@@ -161,61 +157,61 @@ else:
         else:
             c4.metric("Energy Availability", f"{round(energy_availability, 1)} kcal/kg", delta="🟢 Optimal (>45)", delta_color="normal")
 
-        with st.expander("🔍 Aufschlüsselung der heutigen Einheiten & Verbraucher"):
-            st.markdown(f"- **Grundumsatz (BMR):** `{int(bmr)} kcal`")
-            st.markdown(f"- **Alltagsaktivität (Schritte: {steps}):** `+{step_calories} kcal`")
-            if workout_details_list:
-                st.markdown("- **Absolvierte Workouts (Intervals.icu):**")
-                for w_str in workout_details_list:
-                    st.markdown(f"  {w_str}")
-            else:
-                st.info("Heute wurden bisher noch keine abgeschlossenen Aktivitäten via Garmin/Intervals synchronisiert.")
-
         st.divider()
 
-        # --- TÄGLICHE MAKRO- & ZIEL-KACHELN (4 TAGE) ---
-        st.subheader("🍽️ Ernährungs- & Makro-Ziele (Periodisiert)")
-        
-        day_cols = st.columns(4)
-        for i in range(4):
-            target_date = today + timedelta(days=i)
-            date_str = target_date.strftime('%Y-%m-%d')
-            day_name = "Heute" if i == 0 else target_date.strftime('%d.%m. (%a)')
-            
-            is_past_or_today = target_date <= today
-            
-            if is_past_or_today:
-                day_acts = [a for a in activities_list if a.get('start_date_local', '').startswith(date_str)]
-                actual_cals = sum([a.get('calories') or int((a.get('icu_joules') or 0)/4.184) for a in day_acts])
-                est_exercise_cals = actual_cals
-                day_load = sum([a.get('icu_training_load', 0) or 0 for a in day_acts])
-                activity_label = f"✅ Erfasst ({len(day_acts)} Einheit)" if day_acts else "🟢 Ruhetag"
-            else:
-                day_events = [e for e in events_list if e.get('start_date_local', '').startswith(date_str)]
-                day_load = sum([e.get('icu_training_load', 0) or 0 for e in day_events])
-                est_exercise_cals = int(day_load * 8) if day_load > 0 else 300
-                activity_label = "⚡ Geplant"
+        # ==========================================
+        # --- INTERAKTIVE WOCHEN-TABELLE (INTAKE & BILANZ) ---
+        # ==========================================
+        st.subheader("📊 Interaktive Wochen-Übersicht (Intake & Bilanz)")
+        st.markdown("Passe hier den täglichen Intake an, um sofort die kumulierte Wochenbilanz und die EA-Werte zu sehen.")
 
-            protein_target = int(weight_kg * 2.0)
-            fat_target = int(weight_kg * 1.1)
-            carbs_target = int(weight_kg * 9) if day_load > 120 else (int(weight_kg * 6) if day_load > 60 else int(weight_kg * 4))
-            total_target_cals = int(bmr + step_calories + est_exercise_cals)
+        # Erstelle Beispieldaten für die letzten 7 Tage
+        week_data = []
+        for i in range(6, -1, -1):
+            d = today - timedelta(days=i)
+            d_str = d.strftime('%Y-%m-%d')
+            d_name = d.strftime('%a %d.%m.')
             
-            with day_cols[i]:
-                st.markdown(f"### {day_name}")
-                st.caption(activity_label)
-                st.metric("Ziel-Kcal (0-Linie)", f"{total_target_cals} kcal")
-                st.markdown(f"""
-                * **Carbs:** `{carbs_target} g`
-                * **Protein:** `{protein_target} g`
-                * **Fett:** `{fat_target} g`
-                * **Training-Kcal:** `{est_exercise_cals}`
-                """)
+            # Hole Aktivitäten für diesen Tag
+            day_acts = [a for a in activities_list if a.get('start_date_local', '').startswith(d_str)]
+            ex_cals = sum([a.get('calories') or int((a.get('icu_joules') or 0)/4.184) for a in day_acts])
+            
+            day_output = int(bmr + step_calories + ex_cals)
+            
+            week_data.append({
+                "Datum": d_name,
+                "Verbrauch (TDEE)": day_output,
+                "Intake (kcal)": 2800 if i > 0 else consumed_today,
+                "Training Cals": ex_cals
+            })
+
+        df_week = pd.DataFrame(week_data)
+        
+        # Streamlit Data Editor zum interaktiven Bearbeiten des Intakes
+        edited_df = st.data_editor(df_week, num_rows="fixed", use_container_width=True)
+
+        # Berechnungen auf Basis der bearbeiteten Tabelle
+        edited_df["Bilanz"] = edited_df["Intake (kcal)"] - edited_df["Verbrauch (TDEE)"]
+        edited_df["EA (kcal/kg FFM)"] = ((edited_df["Intake (kcal)"] - edited_df["Training Cals"]) / ffm_kg).round(1)
+
+        st.dataframe(edited_df, use_container_width=True)
+
+        tot_verbrauch = edited_df["Verbrauch (TDEE)"].sum()
+        tot_intake = edited_df["Intake (kcal)"].sum()
+        tot_bilanz = edited_df["Bilanz"].sum()
+        avg_ea = edited_df["EA (kcal/kg FFM)"].mean()
+
+        col_w1, col_w2, col_w3, col_w4 = st.columns(4)
+        col_w1.metric("Wochen-Verbrauch", f"{tot_verbrauch} kcal")
+        col_w2.metric("Wochen-Intake", f"{tot_intake} kcal")
+        col_w3.metric("Wochen-Bilanz", f"{tot_bilanz} kcal")
+        col_w4.metric("Ø Energy Availability", f"{round(avg_ea, 1)} kcal/kg")
+
+        st.divider()
 
         # --- CLAUDE KI-COACH CHAT ---
-        st.divider()
         st.subheader("💬 Claude AI Performance & Nutrition Coach")
-        st.markdown("Frag Claude zu deinen Live-Werten. Er kennt deinen heutigen Verbrauch, den Intake, das Defizit/Überschuss und deine Energy Availability.")
+        st.markdown("Frag Claude zu deinen Live-Werten, Wochenbilanzen oder Intervall-Planungen. Er hat den vollen Kontext.")
 
         if not claude_api_key:
             st.info("💡 Trage deinen Anthropic API-Key in der Sidebar unter den Einstellungen ein, um den Chat zu aktivieren.")
@@ -227,13 +223,13 @@ else:
                 with st.chat_message(message["role"]):
                     st.markdown(message["content"])
 
-            if prompt := st.chat_input("Frage Claude zu deiner aktuellen Bilanz oder dem Fueling..."):
+            if prompt := st.chat_input("Frage Claude zu deiner aktuellen Bilanz, dem Fueling oder Training..."):
                 st.session_state.messages.append({"role": "user", "content": prompt})
                 with st.chat_message("user"):
                     st.markdown(prompt)
 
                 with st.chat_message("assistant"):
-                    with st.spinner("Claude analysiert deine Live-Bilanz..."):
+                    with st.spinner("Claude analysiert deine Live-Bilanz & Wochen-Tabelle..."):
                         try:
                             headers = {
                                 "x-api-key": claude_api_key,
@@ -242,15 +238,11 @@ else:
                             }
                             
                             system_context = (
-                                f"Du bist ein Elite Sport-Nutritionist und Radsport-Trainer. "
-                                f"Athleten-Daten: Gewicht {weight_kg}kg, FFM {round(ffm_kg,1)}kg, Grundumsatz (BMR) {int(bmr)} kcal. "
-                                f"HEUTIGER TAG LIVE-DATEN: "
-                                f"- Schritte-Kalorien (NEAT): {step_calories} kcal ({steps} Schritte) "
-                                f"- Echte Workout-Aktivitätskalorien (EEE): {today_exercise_cals} kcal "
-                                f"- Gesamterbrauch (TDEE): {total_today_output} kcal "
-                                f"- Gegessener Intake: {consumed_today} kcal "
-                                f"- Netto-Bilanz: {net_balance} kcal ({'Defizit' if net_balance < 0 else 'Überschuss'}) "
-                                f"- Energy Availability (EA): {round(energy_availability, 1)} kcal/kg FFM."
+                                f"Du bist ein Elite Sport-Nutritionist und Radsport-Trainer für den Athleten Manuel Steiner "
+                                f"(Gewicht {weight_kg}kg, FFM {round(ffm_kg,1)}kg, FTP 325W, BMR {int(bmr)} kcal). "
+                                f"HEUTIGER TAG: Verbrauch {total_today_output} kcal, Intake {consumed_today} kcal, "
+                                f"Netto-Bilanz {net_balance} kcal, EA {round(energy_availability, 1)} kcal/kg FFM. "
+                                f"WOCHEN-ÜBERSICHT:\n{edited_df.to_string()}"
                             )
                             
                             payload = {
