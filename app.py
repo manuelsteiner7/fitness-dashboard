@@ -54,12 +54,25 @@ step_calories = int(steps * 0.04)
 if "logged_meals" not in st.session_state:
     st.session_state.logged_meals = []
 
+# --- HILFSFUNKTION: WORKOUT ZU INTERVALS.ICU POSTEN ---
+def create_intervals_event(a_id, a_key, date_str, name, workout_type, description):
+    auth_tuple = ('API_KEY', a_key)
+    url = f"https://intervals.icu/api/v1/athlete/{a_id}/events"
+    payload = {
+        "start_date_local": f"{date_str}T00:00:00",
+        "name": name,
+        "type": workout_type,
+        "description": description
+    }
+    res = requests.post(url, json=payload, auth=auth_tuple)
+    return res.status_code in [200, 201], res.text
+
 # --- API DATEN ABRUFEN ---
 if not athlete_id or not api_key:
     st.warning("⚠️ Bitte hinterlege deine Intervals.icu Athlete ID und deinen API Key in der Sidebar unter den Einstellungen.")
 else:
     today = datetime.today().date()
-    start_date = (today - timedelta(days=7)).strftime('%Y-%m-%d')
+    start_date = (today - timedelta(days=6)).strftime('%Y-%m-%d')
     end_date = (today + timedelta(days=7)).strftime('%Y-%m-%d')
     
     @st.cache_data(ttl=600)
@@ -121,7 +134,7 @@ else:
             st.sidebar.info("Keine anstehenden Events im Kalender.")
 
         # ==========================================
-        # --- MAHLZEITEN-SCHÄTZUNG VIA FORMULAR (ENTER-TASTE SUPPORT) ---
+        # --- MAHLZEITEN-SCHÄTZUNG VIA FORMULAR ---
         # ==========================================
         st.subheader("🍽️ Mahlzeit eintragen (Automatische KI-Nährwertanalyse)")
         st.markdown("Tippe deine Zutaten ein und drücke **Enter**, um die Nährwerte einzeln aufzuschlüsseln.")
@@ -157,7 +170,7 @@ Nutze Manuels Produktdaten falls zutreffend:
 - Kantinenpizza (1/4 Pizza, 2 Stk): 620 kcal, 83g KH, 26g Protein, 18g Fett
 
 Drösele alle eingegebenen Zutaten EINZELN auf!
-Antworte AUSSCHLIESSLICH als ein valides JSON-Array von Objekten ohne jeden Begleittext oder Markdown-Codeblöcke:
+Antworte AUSSCHLIESSLICH als ein valides JSON-Array von Objekten ohne Begleittext oder Markdown-Codeblöcke:
 [
   {{
     "calories": 260,
@@ -165,13 +178,6 @@ Antworte AUSSCHLIESSLICH als ein valides JSON-Array von Objekten ohne jeden Begl
     "protein": 9,
     "fat": 5,
     "summary": "70g Haferflocken"
-  }},
-  {{
-    "calories": 55,
-    "carbs": 4,
-    "protein": 0.8,
-    "fat": 3.5,
-    "summary": "10g dunkle Schokolade"
   }}
 ]
 """
@@ -201,7 +207,7 @@ Antworte AUSSCHLIESSLICH als ein valides JSON-Array von Objekten ohne jeden Begl
                         st.error(f"Fehler beim Verarbeiten: {e}")
 
         # ==========================================
-        # --- HEUTIGER TAG HERO-SEKTION (LIVE BERECHNET) ---
+        # --- HEUTIGER TAG HERO-SEKTION ---
         # ==========================================
         st.divider()
         st.subheader("🎯 Heutiger Tag – Live Energie- & Makro-Übersicht")
@@ -219,7 +225,6 @@ Antworte AUSSCHLIESSLICH als ein valides JSON-Array von Objekten ohne jeden Begl
 
         total_today_output = int(bmr + step_calories + today_exercise_cals)
 
-        # Summiere Intake und Makros direkt aus allen geloggten Einzelzutaten
         consumed_today = int(sum(m.get('calories', 0) for m in st.session_state.logged_meals))
         total_carbs = round(sum(m.get('carbs', 0) for m in st.session_state.logged_meals), 1)
         total_protein = round(sum(m.get('protein', 0) for m in st.session_state.logged_meals), 1)
@@ -230,7 +235,6 @@ Antworte AUSSCHLIESSLICH als ein valides JSON-Array von Objekten ohne jeden Begl
         net_balance = consumed_today - total_today_output
         energy_availability = (consumed_today - today_exercise_cals) / ffm_kg if ffm_kg > 0 else 0
 
-        # Metriken Reihe 1: Kalorien, Bilanz, EA
         c1, c2, c3, c4 = st.columns(4)
         c1.metric("Gesamtverbrauch (TDEE)", f"{total_today_output} kcal", delta=f"BMR {int(bmr)} + NEAT {step_calories} + Training {today_exercise_cals}")
         c2.metric("Gegessen (Intake)", f"{consumed_today} kcal")
@@ -247,7 +251,6 @@ Antworte AUSSCHLIESSLICH als ein valides JSON-Array von Objekten ohne jeden Begl
         else:
             c4.metric("Energy Availability", f"{round(energy_availability, 1)} kcal/kg", delta="🟢 Optimal (>45)", delta_color="normal")
 
-        # Metriken Reihe 2: Kohlenhydrate, Protein, Fett
         m1, m2, m3 = st.columns(3)
         m1.metric("Kohlenhydrate (KH)", f"{total_carbs} g")
         m2.metric("Protein", f"{total_protein} g", delta=f"Ziel: ~145-155g")
@@ -264,7 +267,7 @@ Antworte AUSSCHLIESSLICH als ein valides JSON-Array von Objekten ohne jeden Begl
         st.divider()
 
         # ==========================================
-        # --- INTERAKTIVE WOCHEN-TABELLE (INTAKE & BILANZ) ---
+        # --- INTERAKTIVE WOCHEN-TABELLE (OHNE INDEX-SPALTE) ---
         # ==========================================
         st.subheader("📊 Interaktive Wochen-Übersicht (Intake & Bilanz)")
 
@@ -289,12 +292,13 @@ Antworte AUSSCHLIESSLICH als ein valides JSON-Array von Objekten ohne jeden Begl
 
         df_week = pd.DataFrame(week_data)
         
-        edited_df = st.data_editor(df_week, num_rows="fixed", use_container_width=True)
+        # HIDE_INDEX=TRUE ENTFERNT DIE BLAUE RANK-SPALTE (0, 1, 2...)
+        edited_df = st.data_editor(df_week, num_rows="fixed", use_container_width=True, hide_index=True)
 
         edited_df["Bilanz"] = edited_df["Intake (kcal)"] - edited_df["Verbrauch (TDEE)"]
         edited_df["EA (kcal/kg FFM)"] = ((edited_df["Intake (kcal)"] - edited_df["Training Cals"]) / ffm_kg).round(1)
 
-        st.dataframe(edited_df, use_container_width=True)
+        st.dataframe(edited_df, use_container_width=True, hide_index=True)
 
         tot_verbrauch = edited_df["Verbrauch (TDEE)"].sum()
         tot_intake = edited_df["Intake (kcal)"].sum()
@@ -310,10 +314,10 @@ Antworte AUSSCHLIESSLICH als ein valides JSON-Array von Objekten ohne jeden Begl
         st.divider()
 
         # ==========================================
-        # --- CLAUDE KI-COACH CHAT VIA SONNET ---
+        # --- CLAUDE KI-COACH CHAT MIT INTERVALS-PUSH ---
         # ==========================================
         st.subheader("💬 Claude AI Performance & Nutrition Coach (Sonnet)")
-        st.markdown("Frag Claude zu deinen Live-Werten, Wochenbilanzen oder Intervall-Planungen.")
+        st.markdown("Frag Claude zu deinen Live-Werten, Wochenbilanzen oder fordere Workouts an, die du direkt in den Kalender übertragen kannst.")
 
         if not claude_api_key:
             st.info("💡 Trage deinen Anthropic API-Key in der Sidebar unter den Einstellungen ein, um den Chat zu aktivieren.")
@@ -345,56 +349,17 @@ Du bist der persönliche Ausdauercoach (Rennrad und Marathon) für Manuel Steine
 ### COACHING- UND KOMMUNIKATIONSSTIL
 * Biete eine wissenschaftlich fundierte, evidenzbasierte Begründung anhand der Trainingsphysiologie.
 * Objektive, rationale Antworten, keine unbegründete Zustimmung. Korrigiere fachlich nicht sinnvolle Einschätzungen direkt.
-* Klares, natürliches Deutsch. Unnötige englische Begriffe vermeiden, wenn es deutsche Fachbegriffe gibt.
+* Klares, natürliches Deutsch. Unnötige englische Begriffe vermeiden.
 * Gedankenstriche NIEMALS als Ersatz für Kommata oder Satzzeichen verwenden.
-* Bei Wochenplänen den genauen Inhalt der Workouts angeben (Intervallzeiten inkl. exakter Wattzahlen, HF-Bereiche, Pace beim Laufen). Keine Verteilung von Spannen/Ranges, sondern klare Einzelwerte.
-* Bevorzuge einen periodisierten Trainingsansatz (ca. jede 4. Woche eine Entlastungswoche).
-* Datums-, Wochentags- und Restzeit-Berechnungen (z. B. Tage bis zu einem Wettkampf) immer sorgfältig prüfen.
+* Bei Wochenplänen den genauen Inhalt der Workouts angeben (Intervallzeiten inkl. exakter Wattzahlen, HF-Bereiche, Pace beim Laufen).
 
-### ERNÄHRUNGSVORGABEN
-* Kochvorschläge sind konsequent VEGETARISCH oder VEGAN (keine Fleischgerichte vorschlagen, auch nicht als Beilagenprotein).
-* Mengenangaben bei Ernährung grundsätzlich als Rohgewicht.
-* Bei geposteten Mahlzeiten: Automatische Analyse von Kalorien, Makros, Mikros (soweit sinnvoll), Proteinversorgung, KH-Versorgung, Fueling-Qualität, Passung zum Training, Timing und Verbesserungsvorschlägen.
-* Energy Availability (EA = (Intake − Training) / FFM) muss über 30 kcal/kg Magermasse bleiben. Maximales tägliches Defizit ca. 300 kcal.
-* Proteinziel: 145–155 g/Tag (~2,0–2,1 g/kg).
+### WORKOUT-PUSER PROTOKOLL
+WENN der Athlet dich bittet, ein Workout zu planen oder in den Kalender einzutragen, füge am Ende deiner Antwort IMMER genau folgenden JSON-Block ein:
 
-### ATHLETENPROFIL & BENCHMARKS
-* Name: Manuel Steiner, Enterprise Architect bei SAP in München, 1,84 m, ~72 kg.
-* Rennrad: FTP 319 W (Intervals.icu), 5-Minuten-Leistung 379 W, Schwellen-HF 169 bpm.
-* HF-Zonen Rad: Z1 <135, Z2 135-142, Z3 143-154, Sweet Spot 155-162, Schwelle 165-170, VO2max >170 bpm.
-* Laufen: Schwellenpace 3:42 min/km, Schwellen-HF 173 bpm.
-* Ziele: Copenhagen Marathon (10.05.2026), RAD RACE One Twenty / Hill Climb (13./14.06.2026), Berlin Marathon (27.09.2026).
-
-### HEUTIGE LIVE-DATEN UND WOCHENÜBERSICHT
-* Gewicht: {weight_kg} kg, Magermasse (FFM): {round(ffm_kg, 1)} kg, Grundumsatz (BMR): {int(bmr)} kcal.
-* Heutige Schritte (NEAT): {step_calories} kcal ({steps} Schritte).
-* Heutiger TDEE-Verbrauch: {total_today_output} kcal | Gegessen: {consumed_today} kcal (KH: {total_carbs}g, Protein: {total_protein}g, Fett: {total_fat}g).
-* Heutige Bilanz: {net_balance} kcal | EA: {round(energy_availability, 1)} kcal/kg FFM.
-* Geloggte Mahlzeiten heute: {st.session_state.logged_meals}
-* Wochen-Tabelle (Intervals & Intake):
-{edited_df.to_string()}
-"""
-
-                            payload = {
-                                "model": "claude-sonnet-4-6",
-                                "max_tokens": 1024,
-                                "system": system_context,
-                                "messages": [{"role": m["role"], "content": m["content"]} for m in st.session_state.messages]
-                            }
-                            
-                            response = requests.post("https://api.anthropic.com/v1/messages", json=payload, headers=headers)
-                            res_json = response.json()
-                            
-                            if response.status_code == 200:
-                                bot_reply = res_json['content'][0]['text']
-                            else:
-                                err_msg = res_json.get('error', {}).get('message', str(res_json))
-                                bot_reply = f"API-Fehler ({response.status_code}): {err_msg}"
-                            
-                            st.markdown(bot_reply)
-                            st.session_state.messages.append({"role": "assistant", "content": bot_reply})
-                        except Exception as e:
-                            st.error(f"Fehler: {e}")
-
-    else:
-        st.error("Fehler beim Abrufen der Intervals.icu Daten. Bitte prüfe ID und API Key.")
+```json_workout
+{{
+  "date": "YYYY-MM-DD",
+  "name": "4x10m Sweet Spot",
+  "type": "Ride",
+  "description": "- 15m Z2\\n- 4x 10m @ 285W (5m Z1)\\n- 15m Z1"
+}}
