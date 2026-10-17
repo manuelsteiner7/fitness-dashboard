@@ -267,9 +267,9 @@ Antworte AUSSCHLIESSLICH als ein valides JSON-Array von Objekten ohne Begleittex
         st.divider()
 
         # ==========================================
-        # --- INTERAKTIVE WOCHEN-TABELLE (OHNE INDEX-SPALTE) ---
+        # --- INTERAKTIVE WOCHEN-ÜBERSICHT (NUR DIE UNTERE TABELLE) ---
         # ==========================================
-        st.subheader("📊 Interaktive Wochen-Übersicht (Intake & Bilanz)")
+        st.subheader("📊 Interaktive Wochen-Übersicht (Bilanz & EA)")
 
         week_data = []
         for i in range(6, -1, -1):
@@ -291,18 +291,17 @@ Antworte AUSSCHLIESSLICH als ein valides JSON-Array von Objekten ohne Begleittex
             })
 
         df_week = pd.DataFrame(week_data)
-        
-        edited_df = st.data_editor(df_week, num_rows="fixed", use_container_width=True, hide_index=True)
 
-        edited_df["Bilanz"] = edited_df["Intake (kcal)"] - edited_df["Verbrauch (TDEE)"]
-        edited_df["EA (kcal/kg FFM)"] = ((edited_df["Intake (kcal)"] - edited_df["Training Cals"]) / ffm_kg).round(1)
+        df_week["Bilanz"] = df_week["Intake (kcal)"] - df_week["Verbrauch (TDEE)"]
+        df_week["EA (kcal/kg FFM)"] = ((df_week["Intake (kcal)"] - df_week["Training Cals"]) / ffm_kg).round(1)
 
-        st.dataframe(edited_df, use_container_width=True, hide_index=True)
+        # Nur noch die fertige Auswertungstabelle (ohne die obere Eingabetabelle) anzeigen
+        st.dataframe(df_week, use_container_width=True, hide_index=True)
 
-        tot_verbrauch = edited_df["Verbrauch (TDEE)"].sum()
-        tot_intake = edited_df["Intake (kcal)"].sum()
-        tot_bilanz = edited_df["Bilanz"].sum()
-        avg_ea = edited_df["EA (kcal/kg FFM)"].mean()
+        tot_verbrauch = df_week["Verbrauch (TDEE)"].sum()
+        tot_intake = df_week["Intake (kcal)"].sum()
+        tot_bilanz = df_week["Bilanz"].sum()
+        avg_ea = df_week["EA (kcal/kg FFM)"].mean()
 
         col_w1, col_w2, col_w3, col_w4 = st.columns(4)
         col_w1.metric("Wochen-Verbrauch", f"{tot_verbrauch} kcal")
@@ -344,6 +343,9 @@ Antworte AUSSCHLIESSLICH als ein valides JSON-Array von Objekten ohne Begleittex
                             
                             system_context = (
                                 "Du bist der persönliche Ausdauercoach (Rennrad und Marathon) für Manuel Steiner.\n\n"
+                                "### DATENZUGRIFF & LIVE-STATUS\n"
+                                "Du hast direkten Zugriff auf die Live-Daten des Athleten, die dir hier übergeben werden. "
+                                "Beantworte Fragen direkt anhand dieser Daten und sage niemals, dass du keinen Zugriff auf den Account hast.\n\n"
                                 "### COACHING- UND KOMMUNIKATIONSSTIL\n"
                                 "* Biete eine wissenschaftlich fundierte, evidenzbasierte Begründung anhand der Trainingsphysiologie.\n"
                                 "* Objektive, rationale Antworten, keine unbegründete Zustimmung. Korrigiere fachlich nicht sinnvolle Einschätzungen direkt.\n"
@@ -364,9 +366,11 @@ Antworte AUSSCHLIESSLICH als ein valides JSON-Array von Objekten ohne Begleittex
                                 "* Name: Manuel Steiner, Enterprise Architect bei SAP in München, 1,84 m, ~72 kg.\n"
                                 "* Rennrad: FTP 319 W, 5-Minuten-Leistung 379 W, Schwellen-HF 169 bpm.\n"
                                 "* Laufen: Schwellenpace 3:42 min/km, Schwellen-HF 173 bpm.\n\n"
-                                f"### HEUTIGE LIVE-DATEN\n"
+                                f"### AKTUELLE LIVE-DATEN (HEUTE & WOCHE)\n"
                                 f"* TDEE: {total_today_output} kcal | Gegessen: {consumed_today} kcal (KH: {total_carbs}g, Prot: {total_protein}g, Fett: {total_fat}g).\n"
-                                f"* Bilanz: {net_balance} kcal | EA: {round(energy_availability, 1)} kcal/kg FFM."
+                                f"* Bilanz: {net_balance} kcal | EA: {round(energy_availability, 1)} kcal/kg FFM.\n"
+                                f"* Anstehende Workouts im Kalender: {[e.get('name') + ' (' + e.get('start_date_local','').split('T')[0] + ')' for e in future_events]}\n"
+                                f"* Wochenübersicht:\n{df_week.to_string()}"
                             )
 
                             payload = {
