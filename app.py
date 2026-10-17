@@ -31,7 +31,7 @@ claude_api_key = st.session_state.claude_api_key
 
 st.sidebar.divider()
 st.sidebar.header("👤 Biometrische Daten")
-weight_kg = st.sidebar.number_input("Körpergewicht (kg)", value=73.0, step=0.5)
+weight_kg = st.sidebar.number_input("Körpergewicht (kg)", value=72.0, step=0.5)
 body_fat_pct = st.sidebar.slider("Körperfettanteil (%)", min_value=5.0, max_value=30.0, value=11.0, step=0.5)
 age = st.sidebar.number_input("Alter", value=31, step=1)
 height_cm = st.sidebar.number_input("Größe (cm)", value=184, step=1)
