@@ -53,12 +53,14 @@ step_calories = int(steps * 0.04)
 today = datetime.today().date()
 today_str = today.strftime('%Y-%m-%d')
 
-# --- PERSISTENZ-SICHERUNG FÜR MAHLZEITEN ---
-if "logged_date" not in st.session_state or st.session_state.logged_date != today_str:
-    st.session_state.logged_date = today_str
-    st.session_state.logged_meals = []
+# --- HILFSFUNKTIONEN FÜR PERSISTENZ IN INTERVALS.ICU ---
+def save_meals_to_intervals(a_id, a_key, date_str, meals_list):
+    auth_tuple = ('API_KEY', a_key)
+    url = f"https://intervals.icu/api/v1/athlete/{a_id}/wellness/{date_str}"
+    data_str = json.dumps(meals_list)
+    payload = {"comments": f"LOGGED_MEALS:{data_str}"}
+    requests.put(url, json=payload, auth=auth_tuple)
 
-# --- HILFSFUNKTION: WORKOUT ZU INTERVALS.ICU POSTEN ---
 def create_intervals_event(a_id, a_key, date_str, name, workout_type, description):
     auth_tuple = ('API_KEY', a_key)
     url = f"https://intervals.icu/api/v1/athlete/{a_id}/events"
@@ -78,7 +80,6 @@ else:
     start_date = (today - timedelta(days=6)).strftime('%Y-%m-%d')
     end_date = (today + timedelta(days=7)).strftime('%Y-%m-%d')
     
-    @st.cache_data(ttl=600)
     def fetch_intervals_data(a_id, a_key, start, end):
         auth_tuple = ('API_KEY', a_key)
         w_res = requests.get(f"https://intervals.icu/api/v1/athlete/{a_id}/wellness?oldest={start}&newest={end}", auth=auth_tuple)
@@ -99,6 +100,19 @@ else:
             if 'weight' in w and w['weight']:
                 latest_weight = w['weight']
                 break
+
+        # Geloggte Mahlzeiten beim Start automatisch aus Intervals.icu auslesen
+        if "logged_meals" not in st.session_state:
+            st.session_state.logged_meals = []
+            today_wellness = [w for w in wellness_list if w.get('id') == today_str]
+            if today_wellness and 'comments' in today_wellness[0]:
+                comments = today_wellness[0]['comments'] or ""
+                if "LOGGED_MEALS:" in comments:
+                    try:
+                        raw_json = comments.split("LOGGED_MEALS:")[1]
+                        st.session_state.logged_meals = json.loads(raw_json)
+                    except Exception:
+                        pass
 
         # --- ANSTEHENDE WORKOUTS IN DER SIDEBAR ---
         future_events = [e for e in events_list if e.get('start_date_local', '') >= str(today)]
@@ -201,6 +215,9 @@ Antworte AUSSCHLIESSLICH als ein valides JSON-Array von Objekten ohne Begleittex
                                     st.session_state.logged_meals.extend(data)
                                 else:
                                     st.session_state.logged_meals.append(data)
+                                
+                                # In Intervals.icu dauerhaft sichern
+                                save_meals_to_intervals(athlete_id, api_key, today_str, st.session_state.logged_meals)
                                 st.rerun()
                             else:
                                 st.error(f"Konnte Nährwerte nicht parsen. Antwort war: {raw_text}")
@@ -264,12 +281,13 @@ Antworte AUSSCHLIESSLICH als ein valides JSON-Array von Objekten ohne Begleittex
                     st.markdown(f"• **{m.get('summary')}**: `{m.get('calories')} kcal` | KH: `{m.get('carbs')}g` | Prot: `{m.get('protein')}g` | Fett: `{m.get('fat')}g`")
                 if st.button("🗑️ Geloggte Mahlzeiten zurücksetzen"):
                     st.session_state.logged_meals = []
+                    save_meals_to_intervals(athlete_id, api_key, today_str, [])
                     st.rerun()
 
         st.divider()
 
         # ==========================================
-        # --- INTERAKTIVE WOCHEN-ÜBERSICHT (NUR DIE UNTERE TABELLE) ---
+        # --- INTERAKTIVE WOCHEN-ÜBERSICHT ---
         # ==========================================
         st.subheader("📊 Interaktive Wochen-Übersicht (Bilanz & EA)")
 
@@ -283,7 +301,20 @@ Antworte AUSSCHLIESSLICH als ein valides JSON-Array von Objekten ohne Begleittex
             ex_cals = sum([a.get('calories') or int((a.get('icu_joules') or 0)/4.184) for a in day_acts])
             
             day_output = int(bmr + step_calories + ex_cals)
-            day_intake = consumed_today if i == 0 else 2800
+            
+            # Aus den Wellness-Einträgen vergangener Tage gegessene Kalorien laden
+            past_intake = 2800
+            day_wellness = [w for w in wellness_list if w.get('id') == d_str]
+            if day_wellness and 'comments' in day_wellness[0]:
+                c_str = day_wellness[0]['comments'] or ""
+                if "LOGGED_MEALS:" in c_str:
+                    try:
+                        p_meals = json.loads(c_str.split("LOGGED_MEALS:")[1])
+                        past_intake = sum(m.get('calories', 0) for m in p_meals)
+                    except Exception:
+                        pass
+            
+            day_intake = consumed_today if i == 0 else past_intake
             
             week_data.append({
                 "Datum": d_name,
