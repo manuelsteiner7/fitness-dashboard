@@ -31,7 +31,7 @@ claude_api_key = st.session_state.claude_api_key
 
 st.sidebar.divider()
 st.sidebar.header("👤 Biometrische Daten")
-weight_kg = st.sidebar.number_input("Körpergewicht (kg)", value=73.0, step=0.5)
+weight_kg = st.sidebar.number_input("Körpergewicht (kg)", value=72.0, step=0.5)
 body_fat_pct = st.sidebar.slider("Körperfettanteil (%)", min_value=5.0, max_value=30.0, value=11.0, step=0.5)
 age = st.sidebar.number_input("Alter", value=31, step=1)
 height_cm = st.sidebar.number_input("Größe (cm)", value=184, step=1)
@@ -345,7 +345,7 @@ Du bist der persönliche Ausdauercoach (Rennrad und Marathon) für Manuel Steine
 * Proteinziel: 145–155 g/Tag (~2,0–2,1 g/kg).
 
 ### ATHLETENPROFIL & BENCHMARKS
-* Name: Manuel Steiner, Enterprise Architect bei SAP in München, 1,84 m, ~73 kg.
+* Name: Manuel Steiner, Enterprise Architect bei SAP in München, 1,84 m, ~72 kg.
 * Rennrad: FTP 319 W (Intervals.icu), 5-Minuten-Leistung 391 W, Schwellen-HF 169 bpm.
 * HF-Zonen Rad: Z1 <135, Z2 132-142, Z3 143-154, Sweet Spot 155-162, Schwelle 163-170, VO2max >170 bpm.
 * Laufen: Schwellenpace 3:42 min/km, Schwellen-HF 172 bpm.
