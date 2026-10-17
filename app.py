@@ -65,9 +65,10 @@ else:
     @st.cache_data(ttl=600)
     def fetch_intervals_data(a_id, a_key, start, end):
         auth_tuple = ('API_KEY', a_key)
-        w_res = requests.get(f"[https://intervals.icu/api/v1/athlete/](https://intervals.icu/api/v1/athlete/){a_id}/wellness?oldest={start}&newest={end}", auth=auth_tuple)
-        e_res = requests.get(f"[https://intervals.icu/api/v1/athlete/](https://intervals.icu/api/v1/athlete/){a_id}/events?oldest={start}&newest={end}", auth=auth_tuple)
-        a_res = requests.get(f"[https://intervals.icu/api/v1/athlete/](https://intervals.icu/api/v1/athlete/){a_id}/activities?oldest={start}&newest={end}", auth=auth_tuple)
+        # FEHLERBEHEBUNG: Saubere URLs ohne Markdown-Formatierung
+        w_res = requests.get(f"https://intervals.icu/api/v1/athlete/{a_id}/wellness?oldest={start}&newest={end}", auth=auth_tuple)
+        e_res = requests.get(f"https://intervals.icu/api/v1/athlete/{a_id}/events?oldest={start}&newest={end}", auth=auth_tuple)
+        a_res = requests.get(f"https://intervals.icu/api/v1/athlete/{a_id}/activities?oldest={start}&newest={end}", auth=auth_tuple)
         
         w_data = w_res.json() if w_res.status_code == 200 else []
         e_data = e_res.json() if e_res.status_code == 200 else []
@@ -170,10 +171,9 @@ Antworte AUSSCHLIESSLICH als valides JSON-Objekt ohne jeden Begleittext, ohne Ma
                             "messages": [{"role": "user", "content": prompt_analysis}]
                         }
                         
-                        res = requests.post("[https://api.anthropic.com/v1/messages](https://api.anthropic.com/v1/messages)", json=payload, headers=headers)
+                        res = requests.post("https://api.anthropic.com/v1/messages", json=payload, headers=headers)
                         if res.status_code == 200:
                             raw_text = res.json()['content'][0]['text']
-                            # JSON-Bereinigung von verstreuten Markdown-Codeblöcken
                             cleaned_json_match = re.search(r'\{.*\}', raw_text, re.DOTALL)
                             if cleaned_json_match:
                                 json_str = cleaned_json_match.group(0)
@@ -235,7 +235,7 @@ Antworte AUSSCHLIESSLICH als valides JSON-Objekt ohne jeden Begleittext, ohne Ma
         else:
             c4.metric("Energy Availability", f"{round(energy_availability, 1)} kcal/kg", delta="🟢 Optimal (>45)", delta_color="normal")
 
-        # Metriken Reihe 2: Kohlenhydrate, Protein, Fett
+        # Metriken Reihe 2: Kohlenhydrate, Protein, Fett (Live aus dem Mahlzeiten-Log)
         m1, m2, m3 = st.columns(3)
         m1.metric("Kohlenhydrate (KH)", f"{total_carbs} g")
         m2.metric("Protein", f"{total_protein} g", delta=f"Ziel: ~145-155g")
@@ -370,7 +370,7 @@ Du bist der persönliche Ausdauercoach (Rennrad und Marathon) für Manuel Steine
                                 "messages": [{"role": m["role"], "content": m["content"]} for m in st.session_state.messages]
                             }
                             
-                            response = requests.post("[https://api.anthropic.com/v1/messages](https://api.anthropic.com/v1/messages)", json=payload, headers=headers)
+                            response = requests.post("https://api.anthropic.com/v1/messages", json=payload, headers=headers)
                             res_json = response.json()
                             
                             if response.status_code == 200:
