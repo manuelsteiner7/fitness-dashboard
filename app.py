@@ -50,8 +50,12 @@ st.sidebar.header("🚶‍♂️ Schritte & Alltagsaktivität")
 steps = st.sidebar.number_input("Tägliche Schritte (Heute)", min_value=1000, max_value=30000, value=10000, step=500)
 step_calories = int(steps * 0.04)
 
-# Session State Initialisierung für den Mahlzeiten-Log
-if "logged_meals" not in st.session_state:
+today = datetime.today().date()
+today_str = today.strftime('%Y-%m-%d')
+
+# --- PERSISTENZ-SICHERUNG FÜR MAHLZEITEN ---
+if "logged_date" not in st.session_state or st.session_state.logged_date != today_str:
+    st.session_state.logged_date = today_str
     st.session_state.logged_meals = []
 
 # --- HILFSFUNKTION: WORKOUT ZU INTERVALS.ICU POSTEN ---
@@ -71,7 +75,6 @@ def create_intervals_event(a_id, a_key, date_str, name, workout_type, descriptio
 if not athlete_id or not api_key:
     st.warning("⚠️ Bitte hinterlege deine Intervals.icu Athlete ID und deinen API Key in der Sidebar unter den Einstellungen.")
 else:
-    today = datetime.today().date()
     start_date = (today - timedelta(days=6)).strftime('%Y-%m-%d')
     end_date = (today + timedelta(days=7)).strftime('%Y-%m-%d')
     
@@ -212,7 +215,6 @@ Antworte AUSSCHLIESSLICH als ein valides JSON-Array von Objekten ohne Begleittex
         st.divider()
         st.subheader("🎯 Heutiger Tag – Live Energie- & Makro-Übersicht")
         
-        today_str = today.strftime('%Y-%m-%d')
         today_acts = [a for a in activities_list if a.get('start_date_local', '').startswith(today_str)]
         
         today_exercise_cals = 0
@@ -295,7 +297,6 @@ Antworte AUSSCHLIESSLICH als ein valides JSON-Array von Objekten ohne Begleittex
         df_week["Bilanz"] = df_week["Intake (kcal)"] - df_week["Verbrauch (TDEE)"]
         df_week["EA (kcal/kg FFM)"] = ((df_week["Intake (kcal)"] - df_week["Training Cals"]) / ffm_kg).round(1)
 
-        # Nur noch die fertige Auswertungstabelle (ohne die obere Eingabetabelle) anzeigen
         st.dataframe(df_week, use_container_width=True, hide_index=True)
 
         tot_verbrauch = df_week["Verbrauch (TDEE)"].sum()
