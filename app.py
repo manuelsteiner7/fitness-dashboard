@@ -342,23 +342,75 @@ Antworte AUSSCHLIESSLICH als ein valides JSON-Array von Objekten ohne Begleittex
                                 "content-type": "application/json"
                             }
                             
-                            system_context = f"""
-Du bist der persönliche Ausdauercoach (Rennrad und Marathon) für Manuel Steiner.
+                            system_context = (
+                                "Du bist der persönliche Ausdauercoach (Rennrad und Marathon) für Manuel Steiner.\n\n"
+                                "### COACHING- UND KOMMUNIKATIONSSTIL\n"
+                                "* Biete eine wissenschaftlich fundierte, evidenzbasierte Begründung anhand der Trainingsphysiologie.\n"
+                                "* Objektive, rationale Antworten, keine unbegründete Zustimmung. Korrigiere fachlich nicht sinnvolle Einschätzungen direkt.\n"
+                                "* Klares, natürliches Deutsch. Unnötige englische Begriffe vermeiden.\n"
+                                "* Gedankenstriche NIEMALS als Ersatz für Kommata oder Satzzeichen verwenden.\n"
+                                "* Bei Wochenplänen den genauen Inhalt der Workouts angeben (Intervallzeiten inkl. exakter Wattzahlen, HF-Bereiche, Pace beim Laufen).\n\n"
+                                "### WORKOUT-PUSHER PROTOKOLL\n"
+                                "WENN der Athlet dich bittet, ein Workout zu planen oder in den Kalender einzutragen, füge am Ende deiner Antwort IMMER genau folgenden JSON-Block ein:\n\n"
+                                "```json_workout\n"
+                                "{\n"
+                                '  "date": "YYYY-MM-DD",\n'
+                                '  "name": "4x10m Sweet Spot",\n'
+                                '  "type": "Ride",\n'
+                                '  "description": "- 15m Z2\\n- 4x 10m @ 285W (5m Z1)\\n- 15m Z1"\n'
+                                "}\n"
+                                "```\n\n"
+                                "### ATHLETENPROFIL & BENCHMARKS\n"
+                                "* Name: Manuel Steiner, Enterprise Architect bei SAP in München, 1,84 m, ~72 kg.\n"
+                                "* Rennrad: FTP 319 W, 5-Minuten-Leistung 379 W, Schwellen-HF 169 bpm.\n"
+                                "* Laufen: Schwellenpace 3:42 min/km, Schwellen-HF 173 bpm.\n\n"
+                                f"### HEUTIGE LIVE-DATEN\n"
+                                f"* TDEE: {total_today_output} kcal | Gegessen: {consumed_today} kcal (KH: {total_carbs}g, Prot: {total_protein}g, Fett: {total_fat}g).\n"
+                                f"* Bilanz: {net_balance} kcal | EA: {round(energy_availability, 1)} kcal/kg FFM."
+                            )
 
-### COACHING- UND KOMMUNIKATIONSSTIL
-* Biete eine wissenschaftlich fundierte, evidenzbasierte Begründung anhand der Trainingsphysiologie.
-* Objektive, rationale Antworten, keine unbegründete Zustimmung. Korrigiere fachlich nicht sinnvolle Einschätzungen direkt.
-* Klares, natürliches Deutsch. Unnötige englische Begriffe vermeiden.
-* Gedankenstriche NIEMALS als Ersatz für Kommata oder Satzzeichen verwenden.
-* Bei Wochenplänen den genauen Inhalt der Workouts angeben (Intervallzeiten inkl. exakter Wattzahlen, HF-Bereiche, Pace beim Laufen).
+                            payload = {
+                                "model": "claude-sonnet-4-6",
+                                "max_tokens": 1024,
+                                "system": system_context,
+                                "messages": [{"role": m["role"], "content": m["content"]} for m in st.session_state.messages]
+                            }
+                            
+                            response = requests.post("https://api.anthropic.com/v1/messages", json=payload, headers=headers)
+                            res_json = response.json()
+                            
+                            if response.status_code == 200:
+                                bot_reply = res_json['content'][0]['text']
+                                st.markdown(bot_reply)
+                                
+                                # Workout-Erkennung für Intervals.icu
+                                if "```json_workout" in bot_reply:
+                                    try:
+                                        workout_json_str = bot_reply.split("```json_workout")[1].split("```")[0].strip()
+                                        w_data = json.loads(workout_json_str)
+                                        
+                                        st.info(f"📅 Workout erkannt: **{w_data.get('name')}** am `{w_data.get('date')}`")
+                                        if st.button("🚀 Workout direkt in Intervals.icu eintragen", key="push_workout_btn"):
+                                            success, resp = create_intervals_event(
+                                                athlete_id, api_key,
+                                                w_data.get('date'),
+                                                w_data.get('name'),
+                                                w_data.get('type', 'Ride'),
+                                                w_data.get('description', '')
+                                            )
+                                            if success:
+                                                st.success("✅ Workout erfolgreich in deinen Intervals.icu Kalender eingetragen!")
+                                            else:
+                                                st.error(f"Fehler beim Erstellen: {resp}")
+                                    except Exception as e:
+                                        st.warning(f"Konnte Workout-JSON nicht parsen: {e}")
 
-### WORKOUT-PUSHER PROTOKOLL
-WENN der Athlet dich bittet, ein Workout zu planen oder in den Kalender einzutragen, füge am Ende deiner Antwort IMMER genau folgenden JSON-Block ein:
+                                st.session_state.messages.append({"role": "assistant", "content": bot_reply})
+                            else:
+                                err_msg = res_json.get('error', {}).get('message', str(res_json))
+                                st.error(f"API-Fehler ({response.status_code}): {err_msg}")
+                        except Exception as e:
+                            st.error(f"Fehler: {e}")
 
-```json_workout
-{{
-  "date": "YYYY-MM-DD",
-  "name": "4x10m Sweet Spot",
-  "type": "Ride",
-  "description": "- 15m Z2\\n- 4x 10m @ 285W (5m Z1)\\n- 15m Z1"
-}}
+    else:
+        st.error("Fehler beim Abrufen der Intervals.icu Daten. Bitte prüfe ID und API Key.")
