@@ -218,8 +218,8 @@ Antworte AUSSCHLIESSLICH im folgenden JSON-Format ohne zusätzlichen Text:
     "summary": "50g Haferflocken + 15g Sojaprotein + 100g Banane"
 }}
 """
-                        payload = {
-                            "model": "claude-3-5-haiku-20241022",
+                       payload = {
+                            "model": "claude-haiku-4-5-20251001",
                             "max_tokens": 300,
                             "messages": [{"role": "user", "content": prompt_analysis}]
                         }
@@ -363,7 +363,7 @@ Du bist der persönliche Ausdauercoach (Rennrad und Marathon) für Manuel Steine
 """
 
                             payload = {
-                               "model": "claude-3-5-haiku-20241022",
+                              "model": "claude-haiku-4-5-20251001",
                                 "max_tokens": 1024,
                                 "system": system_context,
                                 "messages": [{"role": m["role"], "content": m["content"]} for m in st.session_state.messages]
