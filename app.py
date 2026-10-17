@@ -78,7 +78,7 @@ if not athlete_id or not api_key:
     st.warning("⚠️ Bitte hinterlege deine Intervals.icu Athlete ID und deinen API Key in der Sidebar unter den Einstellungen.")
 else:
     start_date = (today - timedelta(days=6)).strftime('%Y-%m-%d')
-    end_date = (today + timedelta(days=7)).strftime('%Y-%m-%d')
+    end_date = (today + timedelta(days=14)).strftime('%Y-%m-%d')
     
     def fetch_intervals_data(a_id, a_key, start, end):
         auth_tuple = ('API_KEY', a_key)
@@ -302,7 +302,6 @@ Antworte AUSSCHLIESSLICH als ein valides JSON-Array von Objekten ohne Begleittex
             
             day_output = int(bmr + step_calories + ex_cals)
             
-            # Aus den Wellness-Einträgen vergangener Tage gegessene Kalorien laden
             past_intake = 2800
             day_wellness = [w for w in wellness_list if w.get('id') == d_str]
             if day_wellness and 'comments' in day_wellness[0]:
@@ -344,7 +343,7 @@ Antworte AUSSCHLIESSLICH als ein valides JSON-Array von Objekten ohne Begleittex
         st.divider()
 
         # ==========================================
-        # --- CLAUDE KI-COACH CHAT MIT INTERVALS-PUSH ---
+        # --- CLAUDE KI-COACH CHAT MIT WORKOUT-DATEN ---
         # ==========================================
         st.subheader("💬 Claude AI Performance & Nutrition Coach (Sonnet)")
         st.markdown("Frag Claude zu deinen Live-Werten, Wochenbilanzen oder fordere Workouts an, die du direkt in den Kalender übertragen kannst.")
@@ -373,11 +372,26 @@ Antworte AUSSCHLIESSLICH als ein valides JSON-Array von Objekten ohne Begleittex
                                 "content-type": "application/json"
                             }
                             
+                            # Strukturierte Liste aller anstehenden Workouts vorbereiten
+                            detailed_workouts = []
+                            for ev in future_events:
+                                w_date = ev.get('start_date_local', '').split('T')[0]
+                                w_name = ev.get('name', 'Unbenannt')
+                                w_type = ev.get('type', 'Ride')
+                                w_dur = int((ev.get('moving_time') or 0) / 60)
+                                w_tss = int(ev.get('icu_training_load') or 0)
+                                w_desc = ev.get('description', '')
+                                detailed_workouts.append(f"- [{w_date}] {w_name} ({w_type}, {w_dur} min, TSS {w_tss}):\n  Beschreibung: {w_desc}")
+
+                            workouts_str = "\n".join(detailed_workouts) if detailed_workouts else "Keine geplanten Workouts in den nächsten 14 Tagen."
+
                             system_context = (
                                 "Du bist der persönliche Ausdauercoach (Rennrad und Marathon) für Manuel Steiner.\n\n"
                                 "### DATENZUGRIFF & LIVE-STATUS\n"
-                                "Du hast direkten Zugriff auf die Live-Daten des Athleten, die dir hier übergeben werden. "
-                                "Beantworte Fragen direkt anhand dieser Daten und sage niemals, dass du keinen Zugriff auf den Account hast.\n\n"
+                                "Du hast VOLLSTÄNDIGEN Zugriff auf die Live-Daten und den Intervals.icu-Kalender des Athleten, "
+                                "die dir hier im Prompt bereitgestellt werden. "
+                                "Beantworte Fragen zu seinen Workouts, Kalorien und Trainingsplänen DIREKT anhand dieser Daten. "
+                                "Behaupte NIEMALS, dass du keinen Zugriff auf Intervals.icu hast oder nach API-Keys fragen müsstest!\n\n"
                                 "### COACHING- UND KOMMUNIKATIONSSTIL\n"
                                 "* Biete eine wissenschaftlich fundierte, evidenzbasierte Begründung anhand der Trainingsphysiologie.\n"
                                 "* Objektive, rationale Antworten, keine unbegründete Zustimmung. Korrigiere fachlich nicht sinnvolle Einschätzungen direkt.\n"
@@ -401,8 +415,8 @@ Antworte AUSSCHLIESSLICH als ein valides JSON-Array von Objekten ohne Begleittex
                                 f"### AKTUELLE LIVE-DATEN (HEUTE & WOCHE)\n"
                                 f"* TDEE: {total_today_output} kcal | Gegessen: {consumed_today} kcal (KH: {total_carbs}g, Prot: {total_protein}g, Fett: {total_fat}g).\n"
                                 f"* Bilanz: {net_balance} kcal | EA: {round(energy_availability, 1)} kcal/kg FFM.\n"
-                                f"* Anstehende Workouts im Kalender: {[e.get('name') + ' (' + e.get('start_date_local','').split('T')[0] + ')' for e in future_events]}\n"
-                                f"* Wochenübersicht:\n{df_week.to_string()}"
+                                f"* Wochenübersicht:\n{df_week.to_string()}\n\n"
+                                f"### GEPLANTE WORKOUTS AUS INTERVALS.ICU (NÄCHSTE 14 TAGE):\n{workouts_str}"
                             )
 
                             payload = {
