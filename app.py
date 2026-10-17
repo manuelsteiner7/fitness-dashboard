@@ -65,7 +65,6 @@ else:
     @st.cache_data(ttl=600)
     def fetch_intervals_data(a_id, a_key, start, end):
         auth_tuple = ('API_KEY', a_key)
-        # FEHLERBEHEBUNG: Saubere URLs ohne Markdown-Formatierung
         w_res = requests.get(f"https://intervals.icu/api/v1/athlete/{a_id}/wellness?oldest={start}&newest={end}", auth=auth_tuple)
         e_res = requests.get(f"https://intervals.icu/api/v1/athlete/{a_id}/events?oldest={start}&newest={end}", auth=auth_tuple)
         a_res = requests.get(f"https://intervals.icu/api/v1/athlete/{a_id}/activities?oldest={start}&newest={end}", auth=auth_tuple)
@@ -122,24 +121,25 @@ else:
             st.sidebar.info("Keine anstehenden Events im Kalender.")
 
         # ==========================================
-        # --- MAHLZEITEN-SCHÄTZUNG & BERECHNUNG ---
+        # --- MAHLZEITEN-SCHÄTZUNG VIA FORMULAR (ENTER-TASTE SUPPORT) ---
         # ==========================================
         st.subheader("🍽️ Mahlzeit eintragen (Automatische KI-Nährwertanalyse)")
-        st.markdown("Tippe ein, was du gegessen hast. Haiku berechnet die Nährwerte und aktualisiert direkt die Bilanzen und Makros oben.")
+        st.markdown("Tippe deine Zutaten ein und drücke **Enter**, um die Nährwerte einzeln aufzuschlüsseln.")
 
-        col_meal1, col_meal2 = st.columns([3, 1])
-        with col_meal1:
-            meal_input = st.text_input("Mahlzeit / Zutaten (z. B. '70g oats')", placeholder="Zutaten in Gramm eingeben...", key="meal_input_field")
-        with col_meal2:
-            st.write("")
-            st.write("")
-            analyze_btn = st.button("➕ Schätzen & Eintragen", use_container_width=True)
+        with st.form(key="meal_form", clear_on_submit=True):
+            col_meal1, col_meal2 = st.columns([3, 1])
+            with col_meal1:
+                meal_input = st.text_input("Mahlzeit / Zutaten", placeholder="z. B. '70g Haferflocken, 10g dunkle Schokolade, 5g Honig'")
+            with col_meal2:
+                st.write("")
+                st.write("")
+                analyze_btn = st.form_submit_button("➕ Schätzen & Eintragen", use_container_width=True)
 
         if analyze_btn and meal_input:
             if not claude_api_key:
                 st.error("Bitte hinterlege deinen Anthropic API Key in der Sidebar.")
             else:
-                with st.spinner("Haiku berechnet Nährwerte & Makros..."):
+                with st.spinner("Haiku analysiert und schlüsselt die Zutaten einzeln auf..."):
                     try:
                         headers = {
                             "x-api-key": claude_api_key,
@@ -149,37 +149,49 @@ else:
                         
                         prompt_analysis = f"""
 Du bist der Ernährungsberater von Manuel Steiner.
-Berechne die Nährwerte für folgende Mahlzeit (Rohgewichte): "{meal_input}".
+Berechne die Nährwerte für folgende Mahlzeit/Zutaten (Rohgewichte): "{meal_input}".
 
 Nutze Manuels Produktdaten falls zutreffend:
 - HSN Sojaprotein (100g): 389 kcal, 1.4g KH, 92g Protein, 1.8g Fett
 - Crunch Müsli (100g): 364 kcal, 64g KH, 9.5g Protein, 6g Fett
 - Kantinenpizza (1/4 Pizza, 2 Stk): 620 kcal, 83g KH, 26g Protein, 18g Fett
 
-Antworte AUSSCHLIESSLICH als valides JSON-Objekt ohne jeden Begleittext, ohne Markdown-Formatierung:
-{{
+Drösele alle eingegebenen Zutaten EINZELN auf!
+Antworte AUSSCHLIESSLICH als ein valides JSON-Array von Objekten ohne jeden Begleittext oder Markdown-Codeblöcke:
+[
+  {{
     "calories": 260,
-    "carbs": 47,
+    "carbs": 42,
     "protein": 9,
     "fat": 5,
     "summary": "70g Haferflocken"
-}}
+  }},
+  {{
+    "calories": 55,
+    "carbs": 4,
+    "protein": 0.8,
+    "fat": 3.5,
+    "summary": "10g dunkle Schokolade"
+  }}
+]
 """
                         payload = {
                             "model": "claude-haiku-4-5-20251001",
-                            "max_tokens": 300,
+                            "max_tokens": 500,
                             "messages": [{"role": "user", "content": prompt_analysis}]
                         }
                         
                         res = requests.post("https://api.anthropic.com/v1/messages", json=payload, headers=headers)
                         if res.status_code == 200:
                             raw_text = res.json()['content'][0]['text']
-                            cleaned_json_match = re.search(r'\{.*\}', raw_text, re.DOTALL)
+                            cleaned_json_match = re.search(r'\[.*\]', raw_text, re.DOTALL) or re.search(r'\{.*\}', raw_text, re.DOTALL)
                             if cleaned_json_match:
                                 json_str = cleaned_json_match.group(0)
                                 data = json.loads(json_str)
-                                st.session_state.logged_meals.append(data)
-                                st.success(f"✅ Hinzugefügt: {data.get('summary')} | +{data.get('calories')} kcal | KH: {data.get('carbs')}g | Prot: {data.get('protein')}g | Fett: {data.get('fat')}g")
+                                if isinstance(data, list):
+                                    st.session_state.logged_meals.extend(data)
+                                else:
+                                    st.session_state.logged_meals.append(data)
                                 st.rerun()
                             else:
                                 st.error(f"Konnte Nährwerte nicht parsen. Antwort war: {raw_text}")
@@ -207,11 +219,11 @@ Antworte AUSSCHLIESSLICH als valides JSON-Objekt ohne jeden Begleittext, ohne Ma
 
         total_today_output = int(bmr + step_calories + today_exercise_cals)
 
-        # Summiere Intake und Makros direkt aus den geloggten Mahlzeiten
-        consumed_today = sum(m.get('calories', 0) for m in st.session_state.logged_meals)
-        total_carbs = sum(m.get('carbs', 0) for m in st.session_state.logged_meals)
-        total_protein = sum(m.get('protein', 0) for m in st.session_state.logged_meals)
-        total_fat = sum(m.get('fat', 0) for m in st.session_state.logged_meals)
+        # Summiere Intake und Makros direkt aus allen geloggten Einzelzutaten
+        consumed_today = int(sum(m.get('calories', 0) for m in st.session_state.logged_meals))
+        total_carbs = round(sum(m.get('carbs', 0) for m in st.session_state.logged_meals), 1)
+        total_protein = round(sum(m.get('protein', 0) for m in st.session_state.logged_meals), 1)
+        total_fat = round(sum(m.get('fat', 0) for m in st.session_state.logged_meals), 1)
 
         st.markdown(f"**Aktuelles Gewicht:** `{latest_weight} kg` | **Magermasse (FFM):** `{round(ffm_kg, 1)} kg`")
 
@@ -235,16 +247,16 @@ Antworte AUSSCHLIESSLICH als valides JSON-Objekt ohne jeden Begleittext, ohne Ma
         else:
             c4.metric("Energy Availability", f"{round(energy_availability, 1)} kcal/kg", delta="🟢 Optimal (>45)", delta_color="normal")
 
-        # Metriken Reihe 2: Kohlenhydrate, Protein, Fett (Live aus dem Mahlzeiten-Log)
+        # Metriken Reihe 2: Kohlenhydrate, Protein, Fett
         m1, m2, m3 = st.columns(3)
         m1.metric("Kohlenhydrate (KH)", f"{total_carbs} g")
         m2.metric("Protein", f"{total_protein} g", delta=f"Ziel: ~145-155g")
         m3.metric("Fett", f"{total_fat} g")
 
         if st.session_state.logged_meals:
-            with st.expander("📋 Heute geloggte Mahlzeiten anzeigen", expanded=False):
+            with st.expander("📋 Geloggte Einzelzutaten heute anzeigen", expanded=True):
                 for idx, m in enumerate(reversed(st.session_state.logged_meals)):
-                    st.markdown(f"• **{m.get('summary')}**: `{m.get('calories')} kcal` (KH: {m.get('carbs')}g | Prot: {m.get('protein')}g | Fett: {m.get('fat')}g)")
+                    st.markdown(f"• **{m.get('summary')}**: `{m.get('calories')} kcal` | KH: `{m.get('carbs')}g` | Prot: `{m.get('protein')}g` | Fett: `{m.get('fat')}g`")
                 if st.button("🗑️ Geloggte Mahlzeiten zurücksetzen"):
                     st.session_state.logged_meals = []
                     st.rerun()
