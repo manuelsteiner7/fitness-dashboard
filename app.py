@@ -2,6 +2,7 @@ import streamlit as st
 import requests
 import pandas as pd
 import json
+import re
 from datetime import datetime, timedelta
 
 # --- SEITEN-KONFIGURATION ---
@@ -49,12 +50,9 @@ st.sidebar.header("🚶‍♂️ Schritte & Alltagsaktivität")
 steps = st.sidebar.number_input("Tägliche Schritte (Heute)", min_value=1000, max_value=30000, value=10000, step=500)
 step_calories = int(steps * 0.04)
 
-# Session State Initialisierung für den Tages-Intake & Mahlzeiten-Log
+# Session State Initialisierung für den Mahlzeiten-Log
 if "logged_meals" not in st.session_state:
     st.session_state.logged_meals = []
-
-if "manual_intake_offset" not in st.session_state:
-    st.session_state.manual_intake_offset = 0
 
 # --- API DATEN ABRUFEN ---
 if not athlete_id or not api_key:
@@ -67,9 +65,9 @@ else:
     @st.cache_data(ttl=600)
     def fetch_intervals_data(a_id, a_key, start, end):
         auth_tuple = ('API_KEY', a_key)
-        w_res = requests.get(f"https://intervals.icu/api/v1/athlete/{a_id}/wellness?oldest={start}&newest={end}", auth=auth_tuple)
-        e_res = requests.get(f"https://intervals.icu/api/v1/athlete/{a_id}/events?oldest={start}&newest={end}", auth=auth_tuple)
-        a_res = requests.get(f"https://intervals.icu/api/v1/athlete/{a_id}/activities?oldest={start}&newest={end}", auth=auth_tuple)
+        w_res = requests.get(f"[https://intervals.icu/api/v1/athlete/](https://intervals.icu/api/v1/athlete/){a_id}/wellness?oldest={start}&newest={end}", auth=auth_tuple)
+        e_res = requests.get(f"[https://intervals.icu/api/v1/athlete/](https://intervals.icu/api/v1/athlete/){a_id}/events?oldest={start}&newest={end}", auth=auth_tuple)
+        a_res = requests.get(f"[https://intervals.icu/api/v1/athlete/](https://intervals.icu/api/v1/athlete/){a_id}/activities?oldest={start}&newest={end}", auth=auth_tuple)
         
         w_data = w_res.json() if w_res.status_code == 200 else []
         e_data = e_res.json() if e_res.status_code == 200 else []
@@ -123,65 +121,14 @@ else:
             st.sidebar.info("Keine anstehenden Events im Kalender.")
 
         # ==========================================
-        # --- HEUTIGER TAG HERO-SEKTION ---
+        # --- MAHLZEITEN-SCHÄTZUNG & BERECHNUNG ---
         # ==========================================
-        st.subheader("🎯 Heutiger Tag – Live Energie- & Bilanz-Übersicht")
-        
-        today_str = today.strftime('%Y-%m-%d')
-        today_acts = [a for a in activities_list if a.get('start_date_local', '').startswith(today_str)]
-        
-        today_exercise_cals = 0
-        workout_details_list = []
-        for act in today_acts:
-            act_name = act.get('name', 'Training')
-            c = act.get('calories')
-            if not c:
-                kJ = act.get('icu_joules') or act.get('energy')
-                c = int(kJ / 4.184) if kJ else 0
-            today_exercise_cals += c
-            workout_details_list.append(f"• **{act_name}**: `{c} kcal`")
-
-        total_today_output = int(bmr + step_calories + today_exercise_cals)
-
-        consumed_today = st.session_state.manual_intake_offset
-
-        col_in1, col_in2 = st.columns([2, 2])
-        with col_in1:
-            consumed_today = st.number_input("Gesamter Tages-Intake (kcal)", value=consumed_today, step=50, key="intake_input_field")
-            st.session_state.manual_intake_offset = consumed_today
-        with col_in2:
-            st.markdown(f"**Aktuelles Gewicht:** `{latest_weight} kg` | **Magermasse (FFM):** `{round(ffm_kg, 1)} kg`")
-
-        net_balance = consumed_today - total_today_output
-        energy_availability = (consumed_today - today_exercise_cals) / ffm_kg if ffm_kg > 0 else 0
-
-        c1, c2, c3, c4 = st.columns(4)
-        c1.metric("Gesamtverbrauch (TDEE)", f"{total_today_output} kcal", delta=f"BMR {int(bmr)} + NEAT {step_calories} + Workouts {today_exercise_cals}")
-        c2.metric("Gegessen (Intake)", f"{consumed_today} kcal")
-        
-        if net_balance >= 0:
-            c3.metric("Bilanz", f"+{net_balance} kcal", delta="Überschuss", delta_color="normal")
-        else:
-            c3.metric("Bilanz", f"{net_balance} kcal", delta="Defizit", delta_color="inverse")
-
-        if energy_availability < 30:
-            c4.metric("Energy Availability", f"{round(energy_availability, 1)} kcal/kg", delta="⚠️ Kritisch (<30)", delta_color="inverse")
-        elif energy_availability < 45:
-            c4.metric("Energy Availability", f"{round(energy_availability, 1)} kcal/kg", delta="⚡ Moderat", delta_color="off")
-        else:
-            c4.metric("Energy Availability", f"{round(energy_availability, 1)} kcal/kg", delta="🟢 Optimal (>45)", delta_color="normal")
-
-        st.divider()
-
-        # ==========================================
-        # --- MAHLZEITEN-SCHÄTZUNG VIA HAIKU ---
-        # ==========================================
-        st.subheader("🍽️ Mahlzeit eintragen (Automatische KI-Nährwertanalyse via Haiku)")
-        st.markdown("Tippe ein, was du in Gramm gegessen hast. Claude Haiku berechnet die Nährwerte blitzschnell und addiert die Kalorien direkt oben zum Intake.")
+        st.subheader("🍽️ Mahlzeit eintragen (Automatische KI-Nährwertanalyse)")
+        st.markdown("Tippe ein, was du gegessen hast. Haiku berechnet die Nährwerte und aktualisiert direkt die Bilanzen und Makros oben.")
 
         col_meal1, col_meal2 = st.columns([3, 1])
         with col_meal1:
-            meal_input = st.text_input("Mahlzeit / Zutaten (z. B. '50g Haferflocken, 15g HSN Sojaprotein, 100g Banane')", placeholder="Zutaten in Gramm eingeben...")
+            meal_input = st.text_input("Mahlzeit / Zutaten (z. B. '70g oats')", placeholder="Zutaten in Gramm eingeben...", key="meal_input_field")
         with col_meal2:
             st.write("")
             st.write("")
@@ -208,13 +155,13 @@ Nutze Manuels Produktdaten falls zutreffend:
 - Crunch Müsli (100g): 364 kcal, 64g KH, 9.5g Protein, 6g Fett
 - Kantinenpizza (1/4 Pizza, 2 Stk): 620 kcal, 83g KH, 26g Protein, 18g Fett
 
-Antworte AUSSCHLIESSLICH im folgenden JSON-Format ohne zusätzlichen Text:
+Antworte AUSSCHLIESSLICH als valides JSON-Objekt ohne jeden Begleittext, ohne Markdown-Formatierung:
 {{
-    "calories": 350,
-    "carbs": 45,
-    "protein": 25,
-    "fat": 8,
-    "summary": "50g Haferflocken + 15g Sojaprotein + 100g Banane"
+    "calories": 260,
+    "carbs": 47,
+    "protein": 9,
+    "fat": 5,
+    "summary": "70g Haferflocken"
 }}
 """
                         payload = {
@@ -223,20 +170,76 @@ Antworte AUSSCHLIESSLICH im folgenden JSON-Format ohne zusätzlichen Text:
                             "messages": [{"role": "user", "content": prompt_analysis}]
                         }
                         
-                        res = requests.post("https://api.anthropic.com/v1/messages", json=payload, headers=headers)
+                        res = requests.post("[https://api.anthropic.com/v1/messages](https://api.anthropic.com/v1/messages)", json=payload, headers=headers)
                         if res.status_code == 200:
                             raw_text = res.json()['content'][0]['text']
-                            data = json.loads(raw_text.strip())
-                            
-                            added_cals = int(data.get("calories", 0))
-                            st.session_state.manual_intake_offset += added_cals
-                            st.session_state.logged_meals.append(data)
-                            st.success(f"✅ Hinzugefügt: +{added_cals} kcal | {data.get('carbs')}g KH | {data.get('protein')}g Protein | {data.get('fat')}g Fett")
-                            st.rerun()
+                            # JSON-Bereinigung von verstreuten Markdown-Codeblöcken
+                            cleaned_json_match = re.search(r'\{.*\}', raw_text, re.DOTALL)
+                            if cleaned_json_match:
+                                json_str = cleaned_json_match.group(0)
+                                data = json.loads(json_str)
+                                st.session_state.logged_meals.append(data)
+                                st.success(f"✅ Hinzugefügt: {data.get('summary')} | +{data.get('calories')} kcal | KH: {data.get('carbs')}g | Prot: {data.get('protein')}g | Fett: {data.get('fat')}g")
+                                st.rerun()
+                            else:
+                                st.error(f"Konnte Nährwerte nicht parsen. Antwort war: {raw_text}")
                         else:
-                            st.error(f"Fehler bei der Berechnung: {res.text}")
+                            st.error(f"Fehler bei der API-Anfrage ({res.status_code}): {res.text}")
                     except Exception as e:
-                        st.error(f"Fehler: {e}")
+                        st.error(f"Fehler beim Verarbeiten: {e}")
+
+        # ==========================================
+        # --- HEUTIGER TAG HERO-SEKTION (LIVE BERECHNET) ---
+        # ==========================================
+        st.divider()
+        st.subheader("🎯 Heutiger Tag – Live Energie- & Makro-Übersicht")
+        
+        today_str = today.strftime('%Y-%m-%d')
+        today_acts = [a for a in activities_list if a.get('start_date_local', '').startswith(today_str)]
+        
+        today_exercise_cals = 0
+        for act in today_acts:
+            c = act.get('calories')
+            if not c:
+                kJ = act.get('icu_joules') or act.get('energy')
+                c = int(kJ / 4.184) if kJ else 0
+            today_exercise_cals += c
+
+        total_today_output = int(bmr + step_calories + today_exercise_cals)
+
+        # Summiere Intake und Makros direkt aus den geloggten Mahlzeiten
+        consumed_today = sum(m.get('calories', 0) for m in st.session_state.logged_meals)
+        total_carbs = sum(m.get('carbs', 0) for m in st.session_state.logged_meals)
+        total_protein = sum(m.get('protein', 0) for m in st.session_state.logged_meals)
+        total_fat = sum(m.get('fat', 0) for m in st.session_state.logged_meals)
+
+        st.markdown(f"**Aktuelles Gewicht:** `{latest_weight} kg` | **Magermasse (FFM):** `{round(ffm_kg, 1)} kg`")
+
+        net_balance = consumed_today - total_today_output
+        energy_availability = (consumed_today - today_exercise_cals) / ffm_kg if ffm_kg > 0 else 0
+
+        # Metriken Reihe 1: Kalorien, Bilanz, EA
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("Gesamtverbrauch (TDEE)", f"{total_today_output} kcal", delta=f"BMR {int(bmr)} + NEAT {step_calories} + Training {today_exercise_cals}")
+        c2.metric("Gegessen (Intake)", f"{consumed_today} kcal")
+        
+        if net_balance >= 0:
+            c3.metric("Bilanz", f"+{net_balance} kcal", delta="Überschuss", delta_color="normal")
+        else:
+            c3.metric("Bilanz", f"{net_balance} kcal", delta="Defizit", delta_color="inverse")
+
+        if energy_availability < 30:
+            c4.metric("Energy Availability", f"{round(energy_availability, 1)} kcal/kg", delta="⚠️ Kritisch (<30)", delta_color="inverse")
+        elif energy_availability < 45:
+            c4.metric("Energy Availability", f"{round(energy_availability, 1)} kcal/kg", delta="⚡ Moderat", delta_color="off")
+        else:
+            c4.metric("Energy Availability", f"{round(energy_availability, 1)} kcal/kg", delta="🟢 Optimal (>45)", delta_color="normal")
+
+        # Metriken Reihe 2: Kohlenhydrate, Protein, Fett
+        m1, m2, m3 = st.columns(3)
+        m1.metric("Kohlenhydrate (KH)", f"{total_carbs} g")
+        m2.metric("Protein", f"{total_protein} g", delta=f"Ziel: ~145-155g")
+        m3.metric("Fett", f"{total_fat} g")
 
         if st.session_state.logged_meals:
             with st.expander("📋 Heute geloggte Mahlzeiten anzeigen", expanded=False):
@@ -244,7 +247,6 @@ Antworte AUSSCHLIESSLICH im folgenden JSON-Format ohne zusätzlichen Text:
                     st.markdown(f"• **{m.get('summary')}**: `{m.get('calories')} kcal` (KH: {m.get('carbs')}g | Prot: {m.get('protein')}g | Fett: {m.get('fat')}g)")
                 if st.button("🗑️ Geloggte Mahlzeiten zurücksetzen"):
                     st.session_state.logged_meals = []
-                    st.session_state.manual_intake_offset = 0
                     st.rerun()
 
         st.divider()
@@ -253,7 +255,6 @@ Antworte AUSSCHLIESSLICH im folgenden JSON-Format ohne zusätzlichen Text:
         # --- INTERAKTIVE WOCHEN-TABELLE (INTAKE & BILANZ) ---
         # ==========================================
         st.subheader("📊 Interaktive Wochen-Übersicht (Intake & Bilanz)")
-        st.markdown("Passe hier den täglichen Intake an, um sofort die kumulierte Wochenbilanz und die EA-Werte zu sehen.")
 
         week_data = []
         for i in range(6, -1, -1):
@@ -265,11 +266,12 @@ Antworte AUSSCHLIESSLICH im folgenden JSON-Format ohne zusätzlichen Text:
             ex_cals = sum([a.get('calories') or int((a.get('icu_joules') or 0)/4.184) for a in day_acts])
             
             day_output = int(bmr + step_calories + ex_cals)
+            day_intake = consumed_today if i == 0 else 2800
             
             week_data.append({
                 "Datum": d_name,
                 "Verbrauch (TDEE)": day_output,
-                "Intake (kcal)": 2800 if i > 0 else consumed_today,
+                "Intake (kcal)": day_intake,
                 "Training Cals": ex_cals
             })
 
@@ -346,15 +348,15 @@ Du bist der persönliche Ausdauercoach (Rennrad und Marathon) für Manuel Steine
 
 ### ATHLETENPROFIL & BENCHMARKS
 * Name: Manuel Steiner, Enterprise Architect bei SAP in München, 1,84 m, ~72 kg.
-* Rennrad: FTP 319 W (Intervals.icu), 5-Minuten-Leistung 391 W, Schwellen-HF 169 bpm.
-* HF-Zonen Rad: Z1 <135, Z2 132-142, Z3 143-154, Sweet Spot 155-162, Schwelle 163-170, VO2max >170 bpm.
-* Laufen: Schwellenpace 3:42 min/km, Schwellen-HF 172 bpm.
-* Ziele: Marathon unter 2:45 h (Berlin Marathon), UCI Gran Fondo Top 25% (Qualifikation World Championships).
+* Rennrad: FTP 319 W (Intervals.icu), 5-Minuten-Leistung 379 W, Schwellen-HF 169 bpm.
+* HF-Zonen Rad: Z1 <135, Z2 135-142, Z3 143-154, Sweet Spot 155-162, Schwelle 165-170, VO2max >170 bpm.
+* Laufen: Schwellenpace 3:42 min/km, Schwellen-HF 173 bpm.
+* Ziele: Copenhagen Marathon (10.05.2026), RAD RACE One Twenty / Hill Climb (13./14.06.2026), Berlin Marathon (27.09.2026).
 
 ### HEUTIGE LIVE-DATEN UND WOCHENÜBERSICHT
 * Gewicht: {weight_kg} kg, Magermasse (FFM): {round(ffm_kg, 1)} kg, Grundumsatz (BMR): {int(bmr)} kcal.
 * Heutige Schritte (NEAT): {step_calories} kcal ({steps} Schritte).
-* Heutiger TDEE-Verbrauch: {total_today_output} kcal | Gegessen: {consumed_today} kcal.
+* Heutiger TDEE-Verbrauch: {total_today_output} kcal | Gegessen: {consumed_today} kcal (KH: {total_carbs}g, Protein: {total_protein}g, Fett: {total_fat}g).
 * Heutige Bilanz: {net_balance} kcal | EA: {round(energy_availability, 1)} kcal/kg FFM.
 * Geloggte Mahlzeiten heute: {st.session_state.logged_meals}
 * Wochen-Tabelle (Intervals & Intake):
@@ -368,7 +370,7 @@ Du bist der persönliche Ausdauercoach (Rennrad und Marathon) für Manuel Steine
                                 "messages": [{"role": m["role"], "content": m["content"]} for m in st.session_state.messages]
                             }
                             
-                            response = requests.post("https://api.anthropic.com/v1/messages", json=payload, headers=headers)
+                            response = requests.post("[https://api.anthropic.com/v1/messages](https://api.anthropic.com/v1/messages)", json=payload, headers=headers)
                             res_json = response.json()
                             
                             if response.status_code == 200:
