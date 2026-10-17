@@ -219,7 +219,7 @@ Antworte AUSSCHLIESSLICH im folgenden JSON-Format ohne zusätzlichen Text:
 }}
 """
                         payload = {
-                            "model": "claude-3-haiku-20240307",
+                            "model": "claude-3-5-haiku-20241022",
                             "max_tokens": 300,
                             "messages": [{"role": "user", "content": prompt_analysis}]
                         }
@@ -363,7 +363,7 @@ Du bist der persönliche Ausdauercoach (Rennrad und Marathon) für Manuel Steine
 """
 
                             payload = {
-                                "model": "claude-3-haiku-20240307",
+                               "model": "claude-3-5-haiku-20241022",
                                 "max_tokens": 1024,
                                 "system": system_context,
                                 "messages": [{"role": m["role"], "content": m["content"]} for m in st.session_state.messages]
