@@ -292,7 +292,6 @@ Antworte AUSSCHLIESSLICH als ein valides JSON-Array von Objekten ohne Begleittex
 
         df_week = pd.DataFrame(week_data)
         
-        # HIDE_INDEX=TRUE ENTFERNT DIE BLAUE RANK-SPALTE (0, 1, 2...)
         edited_df = st.data_editor(df_week, num_rows="fixed", use_container_width=True, hide_index=True)
 
         edited_df["Bilanz"] = edited_df["Intake (kcal)"] - edited_df["Verbrauch (TDEE)"]
@@ -353,7 +352,7 @@ Du bist der persönliche Ausdauercoach (Rennrad und Marathon) für Manuel Steine
 * Gedankenstriche NIEMALS als Ersatz für Kommata oder Satzzeichen verwenden.
 * Bei Wochenplänen den genauen Inhalt der Workouts angeben (Intervallzeiten inkl. exakter Wattzahlen, HF-Bereiche, Pace beim Laufen).
 
-### WORKOUT-PUSER PROTOKOLL
+### WORKOUT-PUSHER PROTOKOLL
 WENN der Athlet dich bittet, ein Workout zu planen oder in den Kalender einzutragen, füge am Ende deiner Antwort IMMER genau folgenden JSON-Block ein:
 
 ```json_workout
