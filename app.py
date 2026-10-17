@@ -103,8 +103,14 @@ else:
             ev_name = selected_ev.get('name', 'Training')
             ev_date = selected_ev.get('start_date_local', '').split('T')[0]
             ev_type = selected_ev.get('type', 'Ride')
-            moving_time = int(selected_ev.get('moving_time', 0) / 60)
-            planned_load = int(selected_ev.get('icu_training_load', 0) or 0)
+            
+            # FEHLERSICHERE ABFRAGEN (Behebt den TypeError)
+            raw_moving_time = selected_ev.get('moving_time')
+            moving_time = int(raw_moving_time / 60) if raw_moving_time is not None else 0
+            
+            raw_load = selected_ev.get('icu_training_load')
+            planned_load = int(raw_load) if raw_load is not None else 0
+            
             description = selected_ev.get('description', 'Keine Beschreibung hinterlegt.')
             
             fuel_advice = "🚀 ~90g+ Carbs/h" if (planned_load > 100 or moving_time > 90) else ("⚡ ~60g Carbs/h" if planned_load > 50 else "💧 Nur Wasser/Elektrolyte")
@@ -138,7 +144,6 @@ else:
 
         total_today_output = int(bmr + step_calories + today_exercise_cals)
 
-        # Berechne den aktuellen Tages-Intake aus geloggten Mahlzeiten + Basis-Offset
         consumed_today = st.session_state.manual_intake_offset
 
         col_in1, col_in2 = st.columns([2, 2])
@@ -179,7 +184,7 @@ else:
         with col_meal1:
             meal_input = st.text_input("Mahlzeit / Zutaten (z. B. '50g Haferflocken, 15g HSN Sojaprotein, 100g Banane')", placeholder="Zutaten in Gramm eingeben...")
         with col_meal2:
-            st.write("") # Abstandhalter
+            st.write("")
             st.write("")
             analyze_btn = st.button("➕ Schätzen & Eintragen", use_container_width=True)
 
@@ -222,7 +227,6 @@ Antworte AUSSCHLIESSLICH im folgenden JSON-Format ohne zusätzlichen Text:
                         res = requests.post("https://api.anthropic.com/v1/messages", json=payload, headers=headers)
                         if res.status_code == 200:
                             raw_text = res.json()['content'][0]['text']
-                            # JSON Parsen
                             data = json.loads(raw_text.strip())
                             
                             added_cals = int(data.get("calories", 0))
