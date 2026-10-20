@@ -216,7 +216,6 @@ Antworte AUSSCHLIESSLICH als ein valides JSON-Array von Objekten ohne Begleittex
                                 else:
                                     st.session_state.logged_meals.append(data)
                                 
-                                # In Intervals.icu dauerhaft sichern
                                 save_meals_to_intervals(athlete_id, api_key, today_str, st.session_state.logged_meals)
                                 st.rerun()
                             else:
@@ -432,28 +431,23 @@ Antworte AUSSCHLIESSLICH als ein valides JSON-Array von Objekten ohne Begleittex
                             if response.status_code == 200:
                                 bot_reply = res_json['content'][0]['text']
                                 st.markdown(bot_reply)
-                                
-                                # Workout-Erkennung für Intervals.icu
+
+                                # Alle Workout-Blöcke extrahieren und bereinigen
                                 if "```json_workout" in bot_reply:
-                                    try:
-                                        workout_json_str = bot_reply.split("```json_workout")[1].split("```")[0].strip()
-                                        w_data = json.loads(workout_json_str)
-                                        
-                                        st.info(f"📅 Workout erkannt: **{w_data.get('name')}** am `{w_data.get('date')}`")
-                                        if st.button("🚀 Workout direkt in Intervals.icu eintragen", key="push_workout_btn"):
-                                            success, resp = create_intervals_event(
-                                                athlete_id, api_key,
-                                                w_data.get('date'),
-                                                w_data.get('name'),
-                                                w_data.get('type', 'Ride'),
-                                                w_data.get('description', '')
-                                            )
-                                            if success:
-                                                st.success("✅ Workout erfolgreich in deinen Intervals.icu Kalender eingetragen!")
-                                            else:
-                                                st.error(f"Fehler beim Erstellen: {resp}")
-                                    except Exception as e:
-                                        st.warning(f"Konnte Workout-JSON nicht parsen: {e}")
+                                    workout_blocks = bot_reply.split("```json_workout")[1:]
+                                    parsed_workouts = []
+                                    for block in workout_blocks:
+                                        try:
+                                            json_str = block.split("```")[0].strip()
+                                            # Bereinige Steuerzeichen wie Zeilenumbrüche innerhalb von JSON-Strings
+                                            json_str = re.sub(r'[\x00-\x1f]+', ' ', json_str)
+                                            w_data = json.loads(json_str)
+                                            parsed_workouts.append(w_data)
+                                        except Exception as e:
+                                            st.warning(f"Konnte Workout-JSON nicht parsen: {e}")
+                                    
+                                    if parsed_workouts:
+                                        st.session_state.pending_workouts = parsed_workouts
 
                                 st.session_state.messages.append({"role": "assistant", "content": bot_reply})
                             else:
@@ -462,5 +456,39 @@ Antworte AUSSCHLIESSLICH als ein valides JSON-Array von Objekten ohne Begleittex
                         except Exception as e:
                             st.error(f"Fehler: {e}")
 
-    else:
-        st.error("Fehler beim Abrufen der Intervals.icu Daten. Bitte prüfe ID und API Key.")
+    # --- WORKOUT PUSHER (Global außerhalb des Chats) ---
+    if "pending_workouts" in st.session_state and st.session_state.pending_workouts:
+        st.divider()
+        st.subheader("🏋️ Erkannte Workouts zum Eintragen")
+        for idx, w_data in enumerate(list(st.session_state.pending_workouts)):
+            col_a, col_b = st.columns([3, 1])
+            with col_a:
+                st.info(
+                    f"📅 **{w_data.get('name')}** "
+                    f"| {w_data.get('date')} "
+                    f"| Typ: {w_data.get('type', 'Ride')}"
+                )
+            with col_b:
+                if st.button(
+                    "🚀 Eintragen",
+                    key=f"push_workout_{idx}_{w_data.get('date')}"
+                ):
+                    success, resp = create_intervals_event(
+                        athlete_id, api_key,
+                        w_data.get('date'),
+                        w_data.get('name'),
+                        w_data.get('type', 'Ride'),
+                        w_data.get('description', '')
+                    )
+                    if success:
+                        st.success(f"✅ '{w_data.get('name')}' erfolgreich eingetragen!")
+                        st.session_state.pending_workouts.pop(idx)
+                        st.rerun()
+                    else:
+                        st.error(f"Fehler: {resp}")
+        if st.button("🗑️ Alle verwerfen", key="discard_workouts"):
+            st.session_state.pending_workouts = []
+            st.rerun()
+
+else:
+    st.error("Fehler beim Abrufen der Intervals.icu Daten. Bitte prüfe ID und API Key.")
