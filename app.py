@@ -43,7 +43,7 @@ if gender == "Männlich":
 else:
     bmr = (10 * weight_kg) + (6.25 * height_cm) - (5 * age) - 161
 
-ffm_kg = 65.0  # Feste Magermasse laut Profil (ca. 65 kg)
+ffm_kg = 65.0  # Feste Magermasse laut Profil (~65 kg)
 
 st.sidebar.divider()
 st.sidebar.header("🚶‍♂️ Schritte & Alltagsaktivität")
@@ -412,7 +412,7 @@ Antworte AUSSCHLIESSLICH als ein valides JSON-Array von Objekten ohne Begleittex
                                 "}\n"
                                 "```\n\n"
                                 "### ATHLETENPROFIL & BENCHMARKS\n"
-                                "* Name: Manuel Steiner, Digital Architect bei SAP in München, 1,84 m, ~73 kg (FFM ~65 kg).\n"
+                                "* Name: Manuel Steiner, Digital Architect Advisor bei SAP in München, 1,84 m, ~73 kg (FFM ~65 kg).\n"
                                 "* Rennrad: FTP 326 W (Schätzung 335-360 W), 5-Min-Leistung 408 W (18.10.2026), Schwellen-HF 169 bpm.\n"
                                 "* Laufen: Marathon PB 2:44:09, HM PB 1:17:51. Schwellenpace 3:42 min/km, Schwellen-HF 172 bpm, HFmax 190 bpm.\n"
                                 "* Aktuelle Phase (Ende Oktober 2026): Unstrukturiert, Urlaub Korea/Hongkong (24.10.-09.11.), danach struktureller Wiedereinstieg mit Fokus FTP/VO2max und Vorbereitung Valencia-Marathon 2027.\n\n"
@@ -496,5 +496,5 @@ Antworte AUSSCHLIESSLICH als ein valides JSON-Array von Objekten ohne Begleittex
                 st.session_state.pending_workouts = []
                 st.rerun()
 
-else:
-    st.error("Fehler beim Abrufen der Intervals.icu Daten. Bitte prüfe ID und API Key.")
+    else:
+        st.error("Fehler beim Abrufen der Intervals.icu Daten. Bitte prüfe ID und API Key.")
