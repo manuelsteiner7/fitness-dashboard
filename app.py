@@ -439,7 +439,6 @@ Antworte AUSSCHLIESSLICH als ein valides JSON-Array von Objekten ohne Begleittex
                                     for block in workout_blocks:
                                         try:
                                             json_str = block.split("```")[0].strip()
-                                            # Bereinige Steuerzeichen wie Zeilenumbrüche innerhalb von JSON-Strings
                                             json_str = re.sub(r'[\x00-\x1f]+', ' ', json_str)
                                             w_data = json.loads(json_str)
                                             parsed_workouts.append(w_data)
@@ -456,39 +455,39 @@ Antworte AUSSCHLIESSLICH als ein valides JSON-Array von Objekten ohne Begleittex
                         except Exception as e:
                             st.error(f"Fehler: {e}")
 
-    # --- WORKOUT PUSHER (Global außerhalb des Chats) ---
-    if "pending_workouts" in st.session_state and st.session_state.pending_workouts:
-        st.divider()
-        st.subheader("🏋️ Erkannte Workouts zum Eintragen")
-        for idx, w_data in enumerate(list(st.session_state.pending_workouts)):
-            col_a, col_b = st.columns([3, 1])
-            with col_a:
-                st.info(
-                    f"📅 **{w_data.get('name')}** "
-                    f"| {w_data.get('date')} "
-                    f"| Typ: {w_data.get('type', 'Ride')}"
-                )
-            with col_b:
-                if st.button(
-                    "🚀 Eintragen",
-                    key=f"push_workout_{idx}_{w_data.get('date')}"
-                ):
-                    success, resp = create_intervals_event(
-                        athlete_id, api_key,
-                        w_data.get('date'),
-                        w_data.get('name'),
-                        w_data.get('type', 'Ride'),
-                        w_data.get('description', '')
+        # --- WORKOUT PUSHER (Global außerhalb des Chats) ---
+        if "pending_workouts" in st.session_state and st.session_state.pending_workouts:
+            st.divider()
+            st.subheader("🏋️ Erkannte Workouts zum Eintragen")
+            for idx, w_data in enumerate(list(st.session_state.pending_workouts)):
+                col_a, col_b = st.columns([3, 1])
+                with col_a:
+                    st.info(
+                        f"📅 **{w_data.get('name')}** "
+                        f"| {w_data.get('date')} "
+                        f"| Typ: {w_data.get('type', 'Ride')}"
                     )
-                    if success:
-                        st.success(f"✅ '{w_data.get('name')}' erfolgreich eingetragen!")
-                        st.session_state.pending_workouts.pop(idx)
-                        st.rerun()
-                    else:
-                        st.error(f"Fehler: {resp}")
-        if st.button("🗑️ Alle verwerfen", key="discard_workouts"):
-            st.session_state.pending_workouts = []
-            st.rerun()
+                with col_b:
+                    if st.button(
+                        "🚀 Eintragen",
+                        key=f"push_workout_{idx}_{w_data.get('date')}"
+                    ):
+                        success, resp = create_intervals_event(
+                            athlete_id, api_key,
+                            w_data.get('date'),
+                            w_data.get('name'),
+                            w_data.get('type', 'Ride'),
+                            w_data.get('description', '')
+                        )
+                        if success:
+                            st.success(f"✅ '{w_data.get('name')}' erfolgreich eingetragen!")
+                            st.session_state.pending_workouts.pop(idx)
+                            st.rerun()
+                        else:
+                            st.error(f"Fehler: {resp}")
+            if st.button("🗑️ Alle verwerfen", key="discard_workouts"):
+                st.session_state.pending_workouts = []
+                st.rerun()
 
-else:
-    st.error("Fehler beim Abrufen der Intervals.icu Daten. Bitte prüfe ID und API Key.")
+    else:
+        st.error("Fehler beim Abrufen der Intervals.icu Daten. Bitte prüfe ID und API Key.")
