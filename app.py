@@ -32,7 +32,7 @@ claude_api_key = st.session_state.claude_api_key
 
 st.sidebar.divider()
 st.sidebar.header("👤 Biometrische Daten")
-weight_kg = st.sidebar.number_input("Körpergewicht (kg)", value=72.0, step=0.5)
+weight_kg = st.sidebar.number_input("Körpergewicht (kg)", value=73.0, step=0.5)
 body_fat_pct = st.sidebar.slider("Körperfettanteil (%)", min_value=5.0, max_value=30.0, value=11.0, step=0.5)
 age = st.sidebar.number_input("Alter", value=31, step=1)
 height_cm = st.sidebar.number_input("Größe (cm)", value=184, step=1)
@@ -43,7 +43,7 @@ if gender == "Männlich":
 else:
     bmr = (10 * weight_kg) + (6.25 * height_cm) - (5 * age) - 161
 
-ffm_kg = weight_kg * (1 - (body_fat_pct / 100))
+ffm_kg = 65.0  # Feste Magermasse laut Profil (ca. 65 kg)
 
 st.sidebar.divider()
 st.sidebar.header("🚶‍♂️ Schritte & Alltagsaktivität")
@@ -61,13 +61,14 @@ def save_meals_to_intervals(a_id, a_key, date_str, meals_list):
     payload = {"comments": f"LOGGED_MEALS:{data_str}"}
     requests.put(url, json=payload, auth=auth_tuple)
 
-def create_intervals_event(a_id, a_key, date_str, name, workout_type, description):
+def create_intervals_event(a_id, a_key, date_str, name, workout_type, description, category="WORKOUT"):
     auth_tuple = ('API_KEY', a_key)
     url = f"https://intervals.icu/api/v1/athlete/{a_id}/events"
     payload = {
         "start_date_local": f"{date_str}T00:00:00",
         "name": name,
         "type": workout_type,
+        "category": category,
         "description": description
     }
     res = requests.post(url, json=payload, auth=auth_tuple)
@@ -396,7 +397,9 @@ Antworte AUSSCHLIESSLICH als ein valides JSON-Array von Objekten ohne Begleittex
                                 "* Objektive, rationale Antworten, keine unbegründete Zustimmung. Korrigiere fachlich nicht sinnvolle Einschätzungen direkt.\n"
                                 "* Klares, natürliches Deutsch. Unnötige englische Begriffe vermeiden.\n"
                                 "* Gedankenstriche NIEMALS als Ersatz für Kommata oder Satzzeichen verwenden.\n"
-                                "* Bei Wochenplänen den genauen Inhalt der Workouts angeben (Intervallzeiten inkl. exakter Wattzahlen, HF-Bereiche, Pace beim Laufen).\n\n"
+                                "* Bei Wochenplänen den genauen Inhalt der Workouts angeben (Intervallzeiten inkl. exakter Wattzahlen, HF-Bereiche, Pace beim Laufen).\n"
+                                "* Kochvorschläge konsequent vegetarisch oder vegan (kein Fleisch, auch nicht als Beilage).\n"
+                                "* Mengenangaben bei Ernährung als Rohgewicht angeben.\n\n"
                                 "### WORKOUT-PUSHER PROTOKOLL\n"
                                 "WENN du Workouts planst, hänge am Ende deiner Nachricht IMMER für jedes Workout oder als Liste diesen Format-Block an:\n\n"
                                 "```json_workout\n"
@@ -404,13 +407,15 @@ Antworte AUSSCHLIESSLICH als ein valides JSON-Array von Objekten ohne Begleittex
                                 '  "date": "YYYY-MM-DD",\n'
                                 '  "name": "4x10m Sweet Spot",\n'
                                 '  "type": "Ride",\n'
+                                '  "category": "WORKOUT",\n'
                                 '  "description": "- 15m Z2\\n- 4x 10m @ 285W (5m Z1)\\n- 15m Z1"\n'
                                 "}\n"
                                 "```\n\n"
                                 "### ATHLETENPROFIL & BENCHMARKS\n"
-                                "* Name: Manuel Steiner, Enterprise Architect bei SAP in München, 1,84 m, ~72 kg.\n"
-                                "* Rennrad: FTP 319 W, 5-Minuten-Leistung 379 W, Schwellen-HF 169 bpm.\n"
-                                "* Laufen: Schwellenpace 3:42 min/km, Schwellen-HF 173 bpm.\n\n"
+                                "* Name: Manuel Steiner, Digital Architect bei SAP in München, 1,84 m, ~73 kg (FFM ~65 kg).\n"
+                                "* Rennrad: FTP 326 W (Schätzung 335-360 W), 5-Min-Leistung 408 W (18.10.2026), Schwellen-HF 169 bpm.\n"
+                                "* Laufen: Marathon PB 2:44:09, HM PB 1:17:51. Schwellenpace 3:42 min/km, Schwellen-HF 172 bpm, HFmax 190 bpm.\n"
+                                "* Aktuelle Phase (Ende Oktober 2026): Unstrukturiert, Urlaub Korea/Hongkong (24.10.-09.11.), danach struktureller Wiedereinstieg mit Fokus FTP/VO2max und Vorbereitung Valencia-Marathon 2027.\n\n"
                                 f"### AKTUELLE LIVE-DATEN (HEUTE & WOCHE)\n"
                                 f"* TDEE: {total_today_output} kcal | Gegessen: {consumed_today} kcal (KH: {total_carbs}g, Prot: {total_protein}g, Fett: {total_fat}g).\n"
                                 f"* Bilanz: {net_balance} kcal | EA: {round(energy_availability, 1)} kcal/kg FFM.\n"
@@ -465,7 +470,8 @@ Antworte AUSSCHLIESSLICH als ein valides JSON-Array von Objekten ohne Begleittex
                     st.info(
                         f"📅 **{w_data.get('name')}** "
                         f"| {w_data.get('date')} "
-                        f"| Typ: {w_data.get('type', 'Ride')}"
+                        f"| Typ: {w_data.get('type', 'Ride')} "
+                        f"| Kat: {w_data.get('category', 'WORKOUT')}"
                     )
                 with col_b:
                     if st.button(
@@ -477,7 +483,8 @@ Antworte AUSSCHLIESSLICH als ein valides JSON-Array von Objekten ohne Begleittex
                             w_data.get('date'),
                             w_data.get('name'),
                             w_data.get('type', 'Ride'),
-                            w_data.get('description', '')
+                            w_data.get('description', ''),
+                            w_data.get('category', 'WORKOUT')
                         )
                         if success:
                             st.success(f"✅ '{w_data.get('name')}' erfolgreich eingetragen!")
@@ -489,5 +496,5 @@ Antworte AUSSCHLIESSLICH als ein valides JSON-Array von Objekten ohne Begleittex
                 st.session_state.pending_workouts = []
                 st.rerun()
 
-    else:
-        st.error("Fehler beim Abrufen der Intervals.icu Daten. Bitte prüfe ID und API Key.")
+else:
+    st.error("Fehler beim Abrufen der Intervals.icu Daten. Bitte prüfe ID und API Key.")
