@@ -390,25 +390,32 @@ Antworte AUSSCHLIESSLICH als ein valides JSON-Array von Objekten ohne Begleittex
                                 "Du bist in ein Streamlit-Dashboard eingebunden. Du hast VOLLSTÄNDIGEN Zugriff auf die Live-Daten des Athleten.\n"
                                 "WICHTIG ZUM WORKOUT-EINTRAGEN: Wenn der Athlet dich bittet, ein Workout oder einen Trainingsplan zu erstellen, "
                                 "diskutiere NICHT darüber, ob du API-Zugriff hast! Füge einfach am Ende deiner Antwort den unten stehenden JSON-Block ein. "
-                                "Unser Dashboard erkennt diesen JSON-Block automatisch und blendet für Manuel einen Button namens '🚀 Workout direkt in Intervals.icu eintragen' ein. "
-                                "Manuel muss dadurch nur auf den Button klicken und das Dashboard übernimmt den API-Call!\n\n"
+                                "Unser Dashboard erkennt diesen JSON-Block automatisch und blendet für Manuel einen Button namens '🚀 Workout direkt in Intervals.icu eintragen' ein.\n\n"
                                 "### COACHING- UND KOMMUNIKATIONSSTIL\n"
                                 "* Biete eine wissenschaftlich fundierte, evidenzbasierte Begründung anhand der Trainingsphysiologie.\n"
                                 "* Objektive, rationale Antworten, keine unbegründete Zustimmung. Korrigiere fachlich nicht sinnvolle Einschätzungen direkt.\n"
                                 "* Klares, natürliches Deutsch. Unnötige englische Begriffe vermeiden.\n"
                                 "* Gedankenstriche NIEMALS als Ersatz für Kommata oder Satzzeichen verwenden.\n"
-                                "* Bei Wochenplänen den genauen Inhalt der Workouts angeben (Intervallzeiten inkl. exakter Wattzahlen, HF-Bereiche, Pace beim Laufen).\n"
                                 "* Kochvorschläge konsequent vegetarisch oder vegan (kein Fleisch, auch nicht als Beilage).\n"
                                 "* Mengenangaben bei Ernährung als Rohgewicht angeben.\n\n"
+                                "### INTERVALS.ICU REINTEXT-SYNTAX (STRIKT EINHALTEN!)\n"
+                                "Das Feld 'description' in deinem JSON-Block MUSS strikt der Intervals.icu Reintext-Syntax entsprechen:\n"
+                                "1. Kopfzeile/Kommentar: Beginne das Beschreibungselement IMMER mit einer kurzen Zusammenfassung über Zweck der Einheit & konkreter Kohlenhydratverpflegung in Gramm (z.B. 'Zweck: Schwellenausdauer | Fueling: 60g Carbs/h (gesamt ~90g)').\n"
+                                "2. Abschnitte: Nutze Sektions-Überschriften wie 'Warmup', 'Main Set' oder 'Cooldown' auf eigener Zeile.\n"
+                                "3. Schritte: Jede Bewegung/Schritt beginnt mit '- ' (Bindestrich + Leerzeichen). Beispiel: '- 10m Z2' oder '- 400mtr 95% pace'.\n"
+                                "4. Leerzeilen: Zwischen Sektionen und Wiederholungen immer eine Leerzeile lassen.\n"
+                                "5. Intensitäten: Cycling: % FTP (z.B. 85%) oder Watt (z.B. 250w). Running: % pace (z.B. 95% pace), Zonen (z.B. Z2 Pace, Z3 HR) oder min/km (z.B. 4:15/km).\n"
+                                "6. Repeats: Schreibe Wiederholungen als '4x' auf eigene Zeile vor den eingerückten/gestrichelten Blöcken.\n"
+                                "7. Ramps & Cadence: '- 10m ramp 55-75%' bzw. '- 5m 90% 95rpm'.\n\n"
                                 "### WORKOUT-PUSHER PROTOKOLL\n"
-                                "WENN du Workouts planst, hänge am Ende deiner Nachricht IMMER für jedes Workout oder als Liste diesen Format-Block an:\n\n"
+                                "WENN du Workouts planst, hänge am Ende deiner Nachricht IMMER für jedes Workout diesen Format-Block an:\n\n"
                                 "```json_workout\n"
                                 "{\n"
                                 '  "date": "YYYY-MM-DD",\n'
                                 '  "name": "4x10m Sweet Spot",\n'
                                 '  "type": "Ride",\n'
                                 '  "category": "WORKOUT",\n'
-                                '  "description": "- 15m Z2\\n- 4x 10m @ 285W (5m Z1)\\n- 15m Z1"\n'
+                                '  "description": "Zweck: Schwellenausdauer | Fueling: 60g Carbs/h (~90g gesamt)\\n\\nWarmup\\n- 15m ramp 50-75%\\n\\nMain Set\\n4x\\n- 10m 88% 90rpm\\n- 5m 55%\\n\\nCooldown\\n- 10m ramp 70-50%"\n'
                                 "}\n"
                                 "```\n\n"
                                 "### ATHLETENPROFIL & BENCHMARKS\n"
@@ -496,5 +503,5 @@ Antworte AUSSCHLIESSLICH als ein valides JSON-Array von Objekten ohne Begleittex
                 st.session_state.pending_workouts = []
                 st.rerun()
 
-    else:
-        st.error("Fehler beim Abrufen der Intervals.icu Daten. Bitte prüfe ID und API Key.")
+else:
+    st.error("Fehler beim Abrufen der Intervals.icu Daten. Bitte prüfe ID und API Key.")
