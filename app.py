@@ -432,7 +432,7 @@ Antworte AUSSCHLIESSLICH als ein valides JSON-Array von Objekten ohne Begleittex
 
                             payload = {
                                 "model": "claude-sonnet-4-6",
-                                "max_tokens": 1024,
+                                "max_tokens": 4096,
                                 "system": system_context,
                                 "messages": [{"role": m["role"], "content": m["content"]} for m in st.session_state.messages]
                             }
