@@ -505,5 +505,3 @@ Antworte AUSSCHLIESSLICH als ein valides JSON-Array von Objekten ohne Begleittex
 
     else:
         st.error("Fehler beim Abrufen der Intervals.icu Daten. Bitte prüfe ID und API Key.")
-else:
-    st.warning("⚠️ Bitte hinterlege deine Intervals.icu Athlete ID und deinen API Key in der Sidebar unter den Einstellungen.")
