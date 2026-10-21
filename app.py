@@ -406,6 +406,7 @@ Antworte AUSSCHLIESSLICH als ein valides JSON-Array von Objekten ohne Begleittex
                                 "4. STRIKTE REGELN FÜR LAUFEINHEITEN (RUN):\n"
                                 "   - Arbeite beim Laufen AUSSCHLIESSLICH mit Pace-Vorgaben! Binde NIEMALS Puls/HR in die einzelnen Schrittzeilen ein.\n"
                                 "   - Nach der Pace MUSS IMMER das Wort 'pace' stehen! Beispiel: '- 35m 4:40/km pace' oder '- 10m 5:10/km pace'.\n"
+                                "   - ZEIT VS. DISTANZ: Minuten werden als 'm' geschrieben (z.B. '- 5m 5:30/km pace'). Meter MÜSSEN ZWINGEND als 'mtr' geschrieben werden (z.B. '- 80mtr 3:20/km pace' oder '- 400mtr 3:40/km pace')! Niemals '80m' schreiben, da Intervals.icu das als 80 Minuten interpretiert!\n"
                                 "   - Verwende NIEMALS das Wort 'gehen' oder 'Gehen'! Nutze für sehr entspannte Abschnitte/Aktivierung stattdessen '- 5m Z1 pace' oder sehr treffende Paces (z.B. '- 5m 6:00/km pace').\n"
                                 "5. Intensitäten Rad: % FTP (z.B. 85%) oder Watt (z.B. 250w).\n"
                                 "6. Leerzeilen: Zwischen Sektionen und Wiederholungen immer eine Leerzeile lassen.\n"
@@ -415,10 +416,10 @@ Antworte AUSSCHLIESSLICH als ein valides JSON-Array von Objekten ohne Begleittex
                                 "```json_workout\n"
                                 "{\n"
                                 '  "date": "YYYY-MM-DD",\n'
-                                '  "name": "W0 | Mi | Lauf locker",\n'
+                                '  "name": "W2 | Mi | Locker Lauf + Steigerungen",\n'
                                 '  "type": "Run",\n'
                                 '  "category": "WORKOUT",\n'
-                                '  "description": "Zweck: Lockere Laufbelastung | Fueling: Wasser | Ziel-HF: 135-148 bpm\\n\\nWarmup\\n- 5m Z1 pace\\n\\nMain Set\\n- 30m 4:40/km pace\\n\\nCooldown\\n- 5m Z1 pace"\n'
+                                '  "description": "Zweck: Lockere aerobe Einheit, neuromuskuläre Aktivierung | Fueling: Nüchtern oder 20g Carbs\\n\\nWarmup\\n- 5m 5:30/km pace\\n\\nMain Set\\n- 40m 4:40/km pace\\n\\n4x\\n- 80mtr 3:20/km pace\\n- 80mtr 5:30/km pace\\n\\nCooldown\\n- 5m 5:30/km pace"\n'
                                 "}\n"
                                 "```\n\n"
                                 "### ATHLETENPROFIL & BENCHMARKS\n"
