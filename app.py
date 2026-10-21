@@ -47,7 +47,7 @@ ffm_kg = 65.0  # Feste Magermasse laut Profil (~65 kg)
 
 st.sidebar.divider()
 st.sidebar.header("🚶‍♂️ Schritte & Alltagsaktivität")
-steps = st.sidebar.number_input("Tägliche Schritte (Heute)", min_value=1000, max_value=30000, value=10000, step=500)
+steps = st.sidebar.number_input("Tägliche Schritte (Heute)", min_value=1000, max_value=30000, value=4000, step=500)
 step_calories = int(steps * 0.04)
 
 today = datetime.today().date()
@@ -398,26 +398,27 @@ Antworte AUSSCHLIESSLICH als ein valides JSON-Array von Objekten ohne Begleittex
                                 "* Gedankenstriche NIEMALS als Ersatz für Kommata oder Satzzeichen verwenden.\n"
                                 "* Kochvorschläge konsequent vegetarisch oder vegan (kein Fleisch, auch nicht als Beilage).\n"
                                 "* Mengenangaben bei Ernährung als Rohgewicht angeben.\n\n"
-                                "### INTERVALS.ICU REINTEXT-SYNTAX FÜR RAD UND LAUF (STRIKT EINHALTEN!)\n"
+                                "### INTERVALS.ICU REINTEXT-SYNTAX (STRIKT EINHALTEN!)\n"
                                 "Das Feld 'description' in deinem JSON-Block MUSS strikt der Intervals.icu Reintext-Syntax entsprechen:\n"
-                                "1. Kopfzeile/Kommentar: Beginne das Beschreibungselement IMMER mit einer kurzen Zusammenfassung über Zweck der Einheit & konkreter Kohlenhydratverpflegung in Gramm (z.B. 'Zweck: Schwellenausdauer | Fueling: 60g Carbs/h (gesamt ~90g)').\n"
+                                "1. Kopfzeile/Kommentar: Beginne das Beschreibungselement IMMER mit einer kurzen Zusammenfassung über Zweck der Einheit & konkreter Kohlenhydratverpflegung in Gramm. Erwähne hier auch die ungefähre HF-Orientierung (z.B. 'Zweck: Ausdauer | Fueling: 30g Carbs | Ziel-HF: <148 bpm').\n"
                                 "2. Abschnitte: Nutze Sektions-Überschriften wie 'Warmup', 'Main Set' oder 'Cooldown' auf eigener Zeile.\n"
                                 "3. Schritte: Jede Bewegung/Schritt beginnt mit '- ' (Bindestrich + Leerzeichen).\n"
-                                "4. WICHTIG BEI LAUFEINHEITEN (RUN): Vermische NIEMALS Pace und Puls in einer Zeile! Nutze pro Schritt entweder eine klare Pace (z.B. '- 30m 4:40/km') ODER einen Puls (z.B. '- 30m 135-148bpm' oder '- 30m Z2 HR'), niemals beides zusammen in einem Schritt.\n"
+                                "4. STRIKTE REGELN FÜR LAUFEINHEITEN (RUN):\n"
+                                "   - Arbeite beim Laufen AUSSCHLIESSLICH mit Pace-Vorgaben! Binde NIEMALS Puls/HR in die einzelnen Schrittzeilen ein.\n"
+                                "   - Nach der Pace MUSS IMMER das Wort 'pace' stehen! Beispiel: '- 35m 4:40/km pace' oder '- 10m 5:10/km pace'.\n"
+                                "   - Verwende NIEMALS das Wort 'gehen' oder 'Gehen'! Nutze für sehr entspannte Abschnitte/Aktivierung stattdessen '- 5m Z1 pace' oder sehr treffende Paces (z.B. '- 5m 6:00/km pace').\n"
                                 "5. Intensitäten Rad: % FTP (z.B. 85%) oder Watt (z.B. 250w).\n"
                                 "6. Leerzeilen: Zwischen Sektionen und Wiederholungen immer eine Leerzeile lassen.\n"
                                 "7. Repeats: Schreibe Wiederholungen als '4x' auf eigene Zeile vor den Blöcken.\n\n"
-                                "### WICHTIG BEI UMFANGREICHEN PLÄNEN:\n"
-                                "Wenn der Athlet einen kompletten Plan für mehrere Wochen anfordert, liefere die Workouts in sauberen, einzelnen JSON-Blöcken aus. Achte darauf, dass keine Strings durch Token-Limits abgeschnitten werden!\n\n"
                                 "### WORKOUT-PUSHER PROTOKOLL\n"
                                 "WENN du Workouts planst, hänge am Ende deiner Nachricht IMMER für jedes Workout diesen Format-Block an:\n\n"
                                 "```json_workout\n"
                                 "{\n"
                                 '  "date": "YYYY-MM-DD",\n'
-                                '  "name": "W0 | Di | Beispiel",\n'
-                                '  "type": "Ride",\n'
+                                '  "name": "W0 | Mi | Lauf locker",\n'
+                                '  "type": "Run",\n'
                                 '  "category": "WORKOUT",\n'
-                                '  "description": "Zweck: Grundlage | Fueling: 30g Carbs\\n\\nWarmup\\n- 10m 61%\\n\\nMain Set\\n- 40m 61%"\n'
+                                '  "description": "Zweck: Lockere Laufbelastung | Fueling: Wasser | Ziel-HF: 135-148 bpm\\n\\nWarmup\\n- 5m Z1 pace\\n\\nMain Set\\n- 30m 4:40/km pace\\n\\nCooldown\\n- 5m Z1 pace"\n'
                                 "}\n"
                                 "```\n\n"
                                 "### ATHLETENPROFIL & BENCHMARKS\n"
@@ -434,7 +435,7 @@ Antworte AUSSCHLIESSLICH als ein valides JSON-Array von Objekten ohne Begleittex
 
                             payload = {
                                 "model": "claude-sonnet-4-6",
-                                "max_tokens": 4096,  # <-- Erhöht auf 4096 für lange Pläne!
+                                "max_tokens": 4096,
                                 "system": system_context,
                                 "messages": [{"role": m["role"], "content": m["content"]} for m in st.session_state.messages]
                             }
